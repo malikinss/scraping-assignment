@@ -1,14 +1,15 @@
 # main.py
 
 from src.config.proxy import ProxyLoader
+from src.scrapers.http_scraper import HttpScraper
 
 
 def main():
     proxy = ProxyLoader.load("data/proxy.json")
+    scraper = HttpScraper(proxy)
+    result = scraper.fetch("https://www.google.com")
 
-    print("HTTPX:", proxy.to_httpx())
-    print("Playwright:", proxy.to_playwright())
-    print("SOCKS5:", proxy.to_socks5())
+    print(result)
 
 
 if __name__ == "__main__":
