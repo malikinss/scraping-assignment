@@ -2,7 +2,7 @@
 
 from typing import Optional
 from dataclasses import dataclass
-from src.models.enums import ScrapeStatus, ScrapeMethod
+from .enums import ScrapeStatus, ScrapeMethod
 
 
 @dataclass
@@ -16,11 +16,15 @@ class ScrapeResult:
 
     error: Optional[str] = None
 
-    def is_success(self) -> bool:
-        return self.status == ScrapeStatus.SUCCESS
-
-    def is_captcha(self) -> bool:
-        return self.status == ScrapeStatus.CAPTCHA
+    def to_dict(self) -> dict:
+        return {
+            "url": self.url,
+            "method": self.method,
+            "status": self.status,
+            "latency": self.latency,
+            "content_length": self.content_length,
+            "error": self.error,
+        }
 
     @classmethod
     def success(
@@ -45,4 +49,17 @@ class ScrapeResult:
             latency=latency,
             content_length=0,
             error=error,
+        )
+
+    @classmethod
+    def captcha(
+        cls, url: str, method: ScrapeMethod, latency: float
+    ):
+        return cls(
+            url=url,
+            method=method,
+            status=ScrapeStatus.CAPTCHA,
+            latency=latency,
+            content_length=0,
+            error="Captcha detected",
         )

@@ -5,7 +5,7 @@ from enum import Enum
 
 class ScrapeStatus(str, Enum):
     SUCCESS = "success"
-    FAILED = "failed"
+    ERROR = "error"
     TIMEOUT = "timeout"
     CAPTCHA = "captcha"
     BLOCKED = "blocked"
