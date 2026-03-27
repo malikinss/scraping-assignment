@@ -1,71 +1,122 @@
 # ./src/scrapers/http_scraper.py
 
-import os
 import time
 import httpx
+from typing import Optional
 
+from src.config.settings import settings
+from src.config.proxy import proxy_manager
 from src.models.scrape_result import ScrapeResult
 from src.models.enums import ScrapeMethod, ScrapeStatus
-from src.config.settings import settings
-from src.config.proxy import ProxyConfig
-from src.services.content_detector import ContentDetector
-
-PROTOCOL = os.getenv("PROTOCOL") or "http://"
 
 
-class HttpScraper:
-    def __init__(self, proxy: ProxyConfig | None = None):
-        self.proxy = proxy.to_httpx()[PROTOCOL] if proxy else None
+class HTTPScraper:
+    def __init__(self):
+        self.timeout = settings.timeout
+        self.retries = settings.retries
+        self.proxy = proxy_manager.get_httpx_proxy()[settings.protocol]
 
-        self.headers = {
-            "User-Agent": settings.user_agent
-        }
+        self.client = self._build_client()
 
-    def _create_client(self) -> httpx.Client:
-        return httpx.Client(
+    def _build_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            timeout=self.timeout,
+            headers={
+                "User-Agent": settings.user_agent,
+                "Accept-Language": "en-US,en;q=0.9",
+            },
             proxy=self.proxy,
-            timeout=settings.timeout,
-            headers=self.headers,
+            follow_redirects=True,
         )
 
-    def fetch(self, url: str) -> ScrapeResult:
-        for attempt in range(settings.retries):
-            result = self._fetch_once(url)
+    async def _request_with_retry(self, url: str) -> Optional[httpx.Response]:
+        for attempt in range(self.retries + 1):
+            try:
+                response = await self.client.get(url)
 
-            if result.is_success():
-                return result
+                if response.status_code == 200:
+                    return response
 
-        return result
+            except httpx.TimeoutException:
+                if attempt == self.retries:
+                    raise
 
-    def _fetch_once(self, url: str) -> ScrapeResult:
-        start_time = time.time()
+            except httpx.RequestError:
+                if attempt == self.retries:
+                    raise
+
+        return None
+
+    def _detect_blocking(self, text: str) -> ScrapeStatus:
+        text_lower = text.lower()
+
+        if "captcha" in text_lower:
+            return ScrapeStatus.CAPTCHA
+
+        if "access denied" in text_lower or "blocked" in text_lower:
+            return ScrapeStatus.BLOCKED
+
+        return ScrapeStatus.SUCCESS
+
+    async def fetch(self, url: str) -> ScrapeResult:
+        start = time.perf_counter()
 
         try:
-            with self._create_client() as client:
-                response = client.get(url)
+            response = await self._request_with_retry(url)
 
-            return ScrapeResult(
-                url=url,
-                method=ScrapeMethod.HTTPX,
-                status=ContentDetector().detect(response.text),
-                latency=time.time() - start_time,
-                content_length=len(response.text),
+            latency = time.perf_counter() - start
+
+            if response is None:
+                return ScrapeResult.failure(
+                    url, ScrapeMethod.HTTPX, latency, "No response"
+                )
+
+            status = self._detect_blocking(response.text)
+
+            if status == ScrapeStatus.CAPTCHA:
+                return ScrapeResult.captcha(url, ScrapeMethod.HTTPX, latency)
+
+            if status == ScrapeStatus.BLOCKED:
+                return ScrapeResult(
+                    url=url,
+                    method=ScrapeMethod.HTTPX,
+                    status=ScrapeStatus.BLOCKED,
+                    latency=latency,
+                    content_length=0,
+                    error="Blocked by site",
+                )
+
+            if not response.text.strip():
+                return ScrapeResult(
+                    url=url,
+                    method=ScrapeMethod.HTTPX,
+                    status=ScrapeStatus.EMPTY,
+                    latency=latency,
+                    content_length=0,
+                )
+
+            return ScrapeResult.success(
+                url, ScrapeMethod.HTTPX, latency, response.text
             )
 
         except httpx.TimeoutException:
+            latency = time.perf_counter() - start
             return ScrapeResult(
                 url=url,
                 method=ScrapeMethod.HTTPX,
                 status=ScrapeStatus.TIMEOUT,
-                latency=time.time() - start_time,
+                latency=latency,
                 content_length=0,
-                error="timeout",
+                error="Timeout",
             )
 
         except Exception as e:
-            return ScrapeResult.failure(
+            latency = time.perf_counter() - start
+            return ScrapeResult(
                 url=url,
                 method=ScrapeMethod.HTTPX,
-                latency=time.time() - start_time,
+                status=ScrapeStatus.ERROR,
+                latency=latency,
+                content_length=0,
                 error=str(e),
             )
