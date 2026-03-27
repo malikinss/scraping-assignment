@@ -9,6 +9,7 @@ class ScrapeStatus(str, Enum):
     TIMEOUT = "timeout"
     CAPTCHA = "captcha"
     BLOCKED = "blocked"
+    EMPTY = "empty"
 
 
 class ScrapeMethod(str, Enum):

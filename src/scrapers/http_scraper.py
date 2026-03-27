@@ -8,6 +8,7 @@ from src.models.scrape_result import ScrapeResult
 from src.models.enums import ScrapeMethod, ScrapeStatus
 from src.config.settings import settings
 from src.config.proxy import ProxyConfig
+from src.services.content_detector import ContentDetector
 
 PROTOCOL = os.getenv("PROTOCOL") or "http://"
 
@@ -43,21 +44,12 @@ class HttpScraper:
             with self._create_client() as client:
                 response = client.get(url)
 
-            latency = time.time() - start_time
-
-            if response.status_code != 200:
-                return ScrapeResult.failure(
-                    url=url,
-                    method=ScrapeMethod.HTTPX,
-                    latency=latency,
-                    error=f"HTTP {response.status_code}",
-                )
-
-            return ScrapeResult.success(
+            return ScrapeResult(
                 url=url,
                 method=ScrapeMethod.HTTPX,
-                latency=latency,
-                content=response.text,
+                status=ContentDetector().detect(response.text),
+                latency=time.time() - start_time,
+                content_length=len(response.text),
             )
 
         except httpx.TimeoutException:

@@ -5,6 +5,7 @@ from playwright.sync_api import sync_playwright
 from src.models.scrape_result import ScrapeResult
 from src.models.enums import ScrapeMethod
 from src.config.proxy import ProxyConfig
+from src.services.content_detector import ContentDetector
 
 
 class BrowserScraper:
@@ -42,22 +43,19 @@ class BrowserScraper:
 
             content = self._get_content(page)
 
-            latency = time.time() - start
-
-            return ScrapeResult.success(
+            return ScrapeResult(
                 url=url,
                 method=ScrapeMethod.PLAYWRIGHT,
-                latency=latency,
-                content=content,
+                status=ContentDetector().detect(content),
+                latency=time.time() - start,
+                content_length=len(content),
             )
 
         except Exception as e:
-            latency = time.time() - start
-
             return ScrapeResult.failure(
                 url=url,
                 method=ScrapeMethod.PLAYWRIGHT,
-                latency=latency,
+                latency=time.time() - start,
                 error=str(e),
             )
 
