@@ -8,6 +8,7 @@ from src.config.settings import settings
 from src.config.proxy import proxy_manager
 from src.models.scrape_result import ScrapeResult
 from src.models.enums import ScrapeMethod, ScrapeStatus
+from src.services.content_detector import detector
 
 
 class HTTPScraper:
@@ -47,17 +48,6 @@ class HTTPScraper:
 
         return None
 
-    def _detect_blocking(self, text: str) -> ScrapeStatus:
-        text_lower = text.lower()
-
-        if "captcha" in text_lower:
-            return ScrapeStatus.CAPTCHA
-
-        if "access denied" in text_lower or "blocked" in text_lower:
-            return ScrapeStatus.BLOCKED
-
-        return ScrapeStatus.SUCCESS
-
     async def fetch(self, url: str) -> ScrapeResult:
         start = time.perf_counter()
 
@@ -71,7 +61,7 @@ class HTTPScraper:
                     url, ScrapeMethod.HTTPX, latency, "No response"
                 )
 
-            status = self._detect_blocking(response.text)
+            status = detector.detect(response.text)
 
             if status == ScrapeStatus.CAPTCHA:
                 return ScrapeResult.captcha(url, ScrapeMethod.HTTPX, latency)

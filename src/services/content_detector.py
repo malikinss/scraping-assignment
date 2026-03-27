@@ -50,3 +50,6 @@ class ContentDetector:
                 return True
 
         return False
+
+
+detector = ContentDetector()
