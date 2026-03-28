@@ -1,11 +1,10 @@
 # ./src/pipeline/runner.py
 
 import asyncio
-
 from src.config.settings import settings
-from src.services.result_saver import ResultSaver
 from src.services.input_loader import URLInputLoader
 from src.pipeline.orchestrator import PipelineOrchestrator
+from src.services.result_manager.result_manager import ResultManager
 
 
 async def main():
@@ -16,8 +15,13 @@ async def main():
     await orchestrator.launch()
     results = await orchestrator.run(urls)
 
-    saver = ResultSaver(settings.output_file)
-    saver.save(results)
+    saver = ResultManager(
+        settings.output_csv_file,
+        settings.output_json_file,
+        settings.output_error_file,
+    )
+
+    saver.save_all(results)
 
 
 if __name__ == "__main__":
