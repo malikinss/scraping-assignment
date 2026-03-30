@@ -1,8 +1,10 @@
 # ./src/services/content_detector/content_detector.py
 
-from typing import List
-from src.utils.logger import Logger
-from src.models import ScrapeStatus
+from .deps import (
+    List,
+    Logger,
+    ScrapeStatus,
+)
 
 logger = Logger(__name__)
 
