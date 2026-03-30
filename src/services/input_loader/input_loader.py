@@ -1,9 +1,13 @@
 # ./src/services/input_loader/input_loader.py
 
-import pandas as pd
-from typing import List, Optional
-from urllib.parse import urlparse
-from ...utils.logger import Logger
+from .deps import (
+    pd,
+    List,
+    Optional,
+    urlparse,
+    Logger,
+)
+
 
 logger = Logger(__name__)
 
