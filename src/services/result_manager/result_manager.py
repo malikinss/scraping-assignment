@@ -1,8 +1,6 @@
-# src/services/result_manager/result_manager.py
+# ./src/services/result_manager/result_manager.py
 
-from typing import List
-from src.utils.logger import Logger
-from src.models import ScrapeResult
+from .deps import List, Logger, ScrapeResult
 from .savers import CSVResultSaver, ErrorLogger, JSONResultSaver
 
 logger = Logger(__name__)
