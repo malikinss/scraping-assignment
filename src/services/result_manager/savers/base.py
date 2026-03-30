@@ -1,10 +1,15 @@
 # ./src/services/result_manager/savers/base.py
 
-from pathlib import Path
-from src.utils.logger import Logger
-from abc import ABC, abstractmethod
-from typing import List, Callable, Any
-from src.models.scrape_result import ScrapeResult
+from .deps import (
+    Path,
+    Logger,
+    ABC,
+    abstractmethod,
+    ScrapeResult,
+    List,
+    Callable,
+    Any,
+)
 
 logger = Logger(__name__)
 

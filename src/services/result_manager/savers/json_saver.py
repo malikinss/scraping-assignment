@@ -1,11 +1,13 @@
 # ./src/services/result_manager/savers/json_saver.py
 
-import json
-from typing import List
-from pathlib import Path
 from .base import BaseSaver
-from src.utils.logger import Logger
-from src.models.scrape_result import ScrapeResult
+from .deps import (
+    json,
+    List,
+    Path,
+    Logger,
+    ScrapeResult,
+)
 
 
 logger = Logger(__name__)

@@ -2,7 +2,7 @@
 
 from typing import List
 from src.utils.logger import Logger
-from src.models.scrape_result import ScrapeResult
+from src.models import ScrapeResult
 from .savers import CSVResultSaver, ErrorLogger, JSONResultSaver
 
 logger = Logger(__name__)
