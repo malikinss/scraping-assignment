@@ -4,9 +4,8 @@ import numpy as np
 from typing import List, Dict
 from .models import MetricsSummary
 from src.utils.logger import Logger
-from src.models.enums import ScrapeStatus
 from .aggregator import MetricsAggregator
-from src.models.scrape_result import ScrapeResult
+from src.models import ScrapeStatus, ScrapeResult
 
 
 logger = Logger(__name__)

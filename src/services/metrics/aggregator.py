@@ -3,8 +3,7 @@
 from typing import List, Dict
 from collections import defaultdict
 from src.utils.logger import Logger
-from src.models.scrape_result import ScrapeResult
-from src.models.enums import ScrapeMethod, ScrapeStatus
+from src.models import ScrapeResult, ScrapeMethod, ScrapeStatus
 
 
 logger = Logger(__name__)
