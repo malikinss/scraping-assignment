@@ -1,9 +1,14 @@
 # ./src/services/metrics/aggregator.py
 
-from typing import List, Dict
-from collections import defaultdict
-from src.utils.logger import Logger
-from src.models import ScrapeResult, ScrapeMethod, ScrapeStatus
+from .deps import (
+    List,
+    Dict,
+    defaultdict,
+    Logger,
+    ScrapeResult,
+    ScrapeMethod,
+    ScrapeStatus,
+)
 
 
 logger = Logger(__name__)

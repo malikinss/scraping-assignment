@@ -1,7 +1,6 @@
 # ./src/services/metrics/models.py
 
-from typing import Dict, Any
-from dataclasses import dataclass
+from .deps import Dict, Any, dataclass
 
 
 @dataclass

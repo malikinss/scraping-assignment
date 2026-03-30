@@ -1,12 +1,15 @@
 # ./src/services/metrics/calculator.py
 
-import numpy as np
-from typing import List, Dict
+from .deps import (
+    np,
+    List,
+    Dict,
+    Logger,
+    ScrapeStatus,
+    ScrapeResult,
+)
 from .models import MetricsSummary
-from src.utils.logger import Logger
 from .aggregator import MetricsAggregator
-from src.models import ScrapeStatus, ScrapeResult
-
 
 logger = Logger(__name__)
 
