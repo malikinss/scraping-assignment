@@ -2,7 +2,7 @@
 
 from typing import List
 from src.utils.logger import Logger
-from src.models.enums import ScrapeStatus
+from src.models import ScrapeStatus
 
 logger = Logger(__name__)
 
