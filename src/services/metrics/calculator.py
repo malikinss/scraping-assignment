@@ -89,7 +89,7 @@ class MetricsCalculator:
         image_count = grouped_by_status.get(ScrapeStatus.IMAGE, 0)
         video_count = grouped_by_status.get(ScrapeStatus.VIDEO, 0)
         audio_count = grouped_by_status.get(ScrapeStatus.AUDIO, 0)
-        error_count = grouped_by_status.get(ScrapeStatus.ERROR, 0)
+        error_count = grouped_by_status.get(ScrapeStatus.FAILED, 0)
 
         logger.debug("Rates calculated successfully")
         return {
