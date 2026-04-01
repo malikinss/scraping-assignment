@@ -19,8 +19,9 @@ class MetricsAggregator:
     Aggregates scraping results into grouped metrics.
     """
 
+    @staticmethod
     def group_by_method(
-        self, results: List[ScrapeResult]
+        results: List[ScrapeResult]
     ) -> Dict[ScrapeMethod, List[ScrapeResult]]:
         """
         Groups ScrapeResult objects by ScrapeMethod.
@@ -40,8 +41,9 @@ class MetricsAggregator:
         logger.debug("Results grouped by method")
         return grouped
 
+    @staticmethod
     def group_by_status(
-        self, results: List[ScrapeResult]
+        results: List[ScrapeResult]
     ) -> Dict[ScrapeStatus, int]:
         """
         Counts the number of ScrapeResult objects for each ScrapeStatus.
