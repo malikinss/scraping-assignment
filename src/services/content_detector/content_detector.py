@@ -23,22 +23,31 @@ class ContentDetector:
 
         Returns:
             ScrapeStatus: The detected status.
-        """
-        logger.debug("Detecting content")
 
-        if not content or self._is_empty(content):
-            logger.debug("Content is empty")
+        Example:
+            >>> detector = ContentDetector()
+            >>> detector.detect("Some content")
+            ScrapeStatus.SUCCESS
+        """
+        if not content:
+            logger.debug("Content detection: EMPTY (no content)")
+            return ScrapeStatus.EMPTY
+
+        length = len(content)
+
+        if self._is_empty(content):
+            logger.debug(f"Content detection: EMPTY (length={length})")
             return ScrapeStatus.EMPTY
 
         if self._is_captcha(content):
-            logger.debug("Content is captcha")
+            logger.debug(f"Content detection: CAPTCHA (length={length})")
             return ScrapeStatus.CAPTCHA
 
         if self._is_blocked(content):
-            logger.debug("Content is blocked")
+            logger.debug(f"Content detection: BLOCKED (length={length})")
             return ScrapeStatus.BLOCKED
 
-        logger.debug("Content is success")
+        logger.debug(f"Content detection: SUCCESS (length={length})")
         return ScrapeStatus.SUCCESS
 
     def _is_empty(self, content: str) -> bool:
@@ -50,6 +59,11 @@ class ContentDetector:
 
         Returns:
             bool: True if the content is considered empty.
+
+        Example:
+            >>> detector = ContentDetector()
+            >>> detector._is_empty("Some content")
+            False
         """
         return len(content.strip()) < 100
 
@@ -62,6 +76,11 @@ class ContentDetector:
 
         Returns:
             bool: True if the content likely contains a CAPTCHA challenge.
+
+        Example:
+            >>> detector = ContentDetector()
+            >>> detector._is_captcha("Some content")
+            False
         """
         keywords: List[str] = [
             "captcha",
@@ -81,6 +100,11 @@ class ContentDetector:
 
         Returns:
             bool: True if the content indicates the request was blocked.
+
+        Example:
+            >>> detector = ContentDetector()
+            >>> detector._is_blocked("Some content")
+            False
         """
         keywords: List[str] = [
             "access denied",
@@ -101,6 +125,11 @@ class ContentDetector:
 
         Returns:
             bool: True if any keyword is present in the content.
+
+        Example:
+            >>> detector = ContentDetector()
+            >>> detector._contains_keywords(["captcha"], "captcha")
+            True
         """
         content_lower = content.lower()
         return any(keyword in content_lower for keyword in keywords)
