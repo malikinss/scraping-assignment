@@ -66,7 +66,7 @@ class ProxyManager:
                 "https://": "http://username:password@hostname:https_port",
             }
         """
-        logger.info(
+        logger.debug(
             f"Initializing ProxyManager with file: {settings.proxy_file}"
         )
         try:
