@@ -19,7 +19,8 @@ class MetricsCalculator:
     Calculates metrics summary from a list of ScrapeResult objects.
     """
 
-    def calculate(self, results: List[ScrapeResult]) -> MetricsSummary:
+    @staticmethod
+    def calculate(results: List[ScrapeResult]) -> MetricsSummary:
         """
         Calculates success/error rates, latency and content length metrics.
 
