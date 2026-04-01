@@ -19,8 +19,8 @@ class MetricsCalculator:
     Calculates metrics summary from a list of ScrapeResult objects.
     """
 
-    @staticmethod
-    def calculate(results: List[ScrapeResult]) -> MetricsSummary:
+    @classmethod
+    def calculate(cls, results: List[ScrapeResult]) -> MetricsSummary:
         """
         Calculates success/error rates, latency and content length metrics.
 
@@ -41,9 +41,9 @@ class MetricsCalculator:
         aggregator = MetricsAggregator()
         grouped_by_status = aggregator.group_by_status(results)
 
-        rates = self._calculate_rates(grouped_by_status)
-        avg_latency, p95_latency = self._calculate_latency(results)
-        avg_content_length = self._calculate_content_length(results)
+        rates = cls._calculate_rates(grouped_by_status)
+        avg_latency, p95_latency = cls._calculate_latency(results)
+        avg_content_length = cls._calculate_content_length(results)
 
         logger.debug("Metrics calculated successfully")
         return MetricsSummary(
@@ -63,8 +63,9 @@ class MetricsCalculator:
             avg_content_length=avg_content_length,
         )
 
+    @staticmethod
     def _calculate_rates(
-        self, grouped_by_status: Dict[ScrapeStatus, int]
+        grouped_by_status: Dict[ScrapeStatus, int]
     ) -> Dict[str, float]:
         """
         Calculates success/error rates from grouped results.
@@ -106,7 +107,8 @@ class MetricsCalculator:
             "error_rate": error_count / total,
         }
 
-    def _calculate_latency(self, results: List[ScrapeResult]):
+    @staticmethod
+    def _calculate_latency(results: List[ScrapeResult]):
         """
         Calculates average and 95th percentile latency from scrape results.
 
@@ -126,7 +128,8 @@ class MetricsCalculator:
         logger.debug("Latency calculated successfully")
         return avg_latency, p95_latency
 
-    def _calculate_content_length(self, results: List[ScrapeResult]):
+    @staticmethod
+    def _calculate_content_length(results: List[ScrapeResult]):
         """
         Calculates average content length from scrape results.
 
