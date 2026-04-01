@@ -71,7 +71,7 @@ class ProxyManager:
         )
         try:
             self.credentials: ProxyCredentials = self._load()
-            logger.info(
+            logger.debug(
                 f"Proxy credentials loaded for "
                 f"hostname={self.credentials.hostname}"
             )
