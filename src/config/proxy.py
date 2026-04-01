@@ -144,7 +144,7 @@ class ProxyManager:
         https_port: int = proxy["port"]["https"]
         socks5_port: int = proxy["port"]["socks5"]
 
-        logger.debug(
+        logger.info(
             f"Loaded proxy for "
             f"hostname={hostname}, ports: http={http_port}, "
             f"https={https_port}, socks5={socks5_port}"
