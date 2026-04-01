@@ -29,6 +29,7 @@ class URLInputLoader:
         Args:
             file_path (str): Path to the CSV file containing URLs.
         """
+        print()
         logger.debug(
             f"Initializing URLInputLoader with file path: {file_path}")
         self.file_path: str = file_path
