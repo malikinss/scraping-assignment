@@ -9,7 +9,7 @@ from .deps import (
 )
 from .base import BaseSaver
 
-logger = Logger(__name__)
+logger = Logger("CSVSaver")
 
 
 class CSVResultSaver(BaseSaver):
@@ -30,10 +30,12 @@ class CSVResultSaver(BaseSaver):
                                      existing file. If False, the file will be
                                      overwritten.
                                      Defaults to False.
+
+        Example:
+            >>> saver = CSVResultSaver("test.csv")
+            >>> saver.save([ScrapeResult("url", "content", "status")])
+            file saved successfully to test.csv
         """
-        logger.debug(
-            f"Initializing CSVResultSaver: path={file_path}, append={append}"
-        )
         self.file_path: Path = Path(file_path)
         self.append: bool = append
 
@@ -51,14 +53,18 @@ class CSVResultSaver(BaseSaver):
 
         Raises:
             Exception: Propagates any exception raised during file writing.
+
+        Example:
+            >>> saver = CSVResultSaver("test.csv")
+            >>> saver.save([ScrapeResult("url", "content", "status")])
+            Saving file: test.csv
+            file saved successfully to test.csv
         """
         if not results:
-            logger.info(f"No results to save to CSV: {self.file_path}")
+            logger.debug(
+                f"CSV save skipped: no results path={self.file_path}"
+            )
             return
-
-        logger.debug(
-            f"Saving {len(results)} results to CSV file: {self.file_path}"
-        )
 
         mode: str = "a" if self.append else "w"
 
@@ -69,23 +75,40 @@ class CSVResultSaver(BaseSaver):
             Args:
                 f (IO[Any]): A file-like object opened for writing.
             """
+            fieldnames = [
+                "url",
+                "method",
+                "status",
+                "latency",
+                "content_length",
+                "error",
+            ]
             writer = csv.DictWriter(
                 f,
-                fieldnames=[
-                    "url",
-                    "method",
-                    "status",
-                    "latency",
-                    "content_length",
-                    "error",
-                ],
+                fieldnames=fieldnames,
             )
-            if not self.append or self.file_path.stat().st_size == 0:
-                logger.debug("Writing header to CSV file")
+
+            # Write header only if file is empty or in overwrite mode
+            need_header = (
+                not self.append
+                or not self.file_path.exists()
+                or self.file_path.stat().st_size == 0
+            )
+            if need_header:
                 writer.writeheader()
 
             for r in results:
-                writer.writerow(r.to_dict())
-                logger.debug(f"Writing result to CSV file: {r.url}")
+                row = r.to_dict()
+                filtered_row = {k: row.get(k, None) for k in fieldnames}
+                writer.writerow(filtered_row)
 
-        self.write_file(self.file_path, writer, mode, description="CSV file")
+        # Use BaseSaver's utility to write file safely
+        self.write_file(
+            self.file_path,
+            writer,
+            mode,
+            description="CSV file"
+        )
+        logger.info(
+            f"CSV saved: path={self.file_path} count={len(results)}"
+        )
