@@ -82,4 +82,4 @@ class URLUtils:
             bool: True if URL has scheme and netloc
         """
         parsed = urlparse(url)
-        return bool(parsed.scheme and parsed.netloc)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
