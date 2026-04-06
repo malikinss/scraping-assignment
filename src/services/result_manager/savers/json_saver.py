@@ -3,6 +3,7 @@
 from .base import BaseSaver
 from .deps import (
     json,
+    Any,
     List,
     Path,
     Logger,
@@ -10,7 +11,7 @@ from .deps import (
 )
 
 
-logger = Logger(__name__)
+logger = Logger("JSONSaver")
 
 
 class JSONResultSaver(BaseSaver):
@@ -32,11 +33,20 @@ class JSONResultSaver(BaseSaver):
                                      If False, a compact JSON representation
                                      will be used.
                                      Defaults to True.
+
+        Example:
+            >>> saver = JSONResultSaver("results.json")
+            >>> saver.save([
+            ...     ScrapeResult(
+            ...         "url",
+            ...         "method",
+            ...         "status",
+            ...         "latency",
+            ...         "content_length",
+            ...         "error"
+            ...     ),
+            ... ])
         """
-        logger.debug(
-            f"Initializing JSONResultSaver with path={file_path} and "
-            f"pretty={pretty}"
-        )
         self.file_path: Path = Path(file_path)
         self.pretty: bool = pretty
 
@@ -54,15 +64,29 @@ class JSONResultSaver(BaseSaver):
 
         Raises:
             Exception: Propagates any exception raised during file writing.
+
+        Example:
+            >>> saver = JSONResultSaver("results.json")
+            >>> saver.save([
+            ...     ScrapeResult(
+            ...         "url",
+            ...         "method",
+            ...         "status",
+            ...         "latency",
+            ...         "content_length",
+            ...         "error"
+            ...     ),
+            ... ])
         """
         if not results:
-            logger.info("No results provided to JSONResultSaver.")
+            logger.debug(
+                f"JSON save skipped: no results path={self.file_path}"
+            )
             return
 
-        logger.debug(
-            f"Saving {len(results)} results to JSON file: {self.file_path}"
-        )
-        data = [r.to_dict() for r in results]
+        count = len(results)
+        data = [self._safe_to_dict(r) for r in results]
+        indent = 4 if self.pretty else None
 
         def writer(f):
             """
@@ -71,11 +95,27 @@ class JSONResultSaver(BaseSaver):
             Args:
                 f (IO[Any]): A file-like object opened for writing.
             """
-            if self.pretty:
-                logger.debug("Writing pretty JSON to file")
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            else:
-                logger.debug("Writing compact JSON to file")
-                json.dump(data, f, ensure_ascii=False)
+            json.dump(data, f, ensure_ascii=False, indent=indent)
 
         self.write_file(self.file_path, writer, description="JSON file")
+        logger.info(
+            f"JSON saved: path={self.file_path} "
+            f"count={count} "
+            f"pretty={self.pretty}"
+        )
+
+    @staticmethod
+    def _safe_to_dict(result: ScrapeResult) -> dict[str, Any]:
+        """
+        Safely convert ScrapeResult to dictionary.
+
+        Ensures the result is JSON-serializable.
+        """
+        try:
+            return result.to_dict()
+        except Exception as e:
+            return {
+                "error": "serialization_failed",
+                "reason": str(e),
+                "raw": str(result),
+            }
