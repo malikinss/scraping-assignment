@@ -76,6 +76,7 @@ class CSVResultSaver(BaseSaver):
                 f (IO[Any]): A file-like object opened for writing.
             """
             fieldnames = [
+                "id",
                 "url",
                 "method",
                 "status",
