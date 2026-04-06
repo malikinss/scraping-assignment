@@ -75,7 +75,6 @@ class ErrorLogger(BaseSaver):
             return
 
         total = len(results)
-
         errors: List[ScrapeResult] = [r for r in results if r.is_error]
         error_count = len(errors)
 
