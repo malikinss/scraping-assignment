@@ -1,6 +1,6 @@
 # ./src/logger.py
 
-from .deps import os, logging
+from .deps import os, logging, re
 
 
 class ColoredFormatter(logging.Formatter):
@@ -10,19 +10,33 @@ class ColoredFormatter(logging.Formatter):
 
     RESET = "\x1b[0m"
 
+    # basic level colors
     LEVEL_COLORS = {
-        "DEBUG": "\x1b[35m",    # Magenta
-        "INFO": "\x1b[34m",     # Blue
-        "WARNING": "\x1b[33m",  # Yellow
-        "ERROR": "\x1b[91m",    # Red
-        "CRITICAL": "\x1b[31m",  # Red
+        "DEBUG": "\x1b[35m",
+        "INFO": "\x1b[34m",
+        "WARNING": "\x1b[33m",
+        "ERROR": "\x1b[91m",
+        "CRITICAL": "\x1b[31m",
     }
 
-    MODULE_COLOR = "\x1b[38;5;208m"  # Orange
-    TIME_COLOR = "\x1b[90m"         # Gray
+    # custom colors
+    COLORS = {
+        "MODULE": "\x1b[38;5;208m",      # orange
+        "TIME": "\x1b[90m",               # gray
+        "BRACKETS": "\x1b[32m",           # green
+        "ID": "\x1b[38;5;201m",           # pink
+        "PLAYWRIGHT": "\x1b[38;5;118m",   # lime
+        "BROWSER": "\x1b[38;5;118m",      # lime
+        "HTTPX": "\x1b[38;5;229m",        # light yellow
+        "NUMBER": "\x1b[94m",             # light blue (for IDs)
+    }
 
     NAME_WIDTH = 25
     LEVEL_WIDTH = 10
+
+    # regex patterns for dynamic highlighting
+    ID_PATTERN = re.compile(r"(\[)(ID:)(\s*)(\d+)(\])")
+    KEYWORDS_PATTERN = re.compile(r"\b(PLAYWRIGHT|BROWSER|HTTPX)\b")
 
     def format(self, record: logging.LogRecord) -> str:
         """
@@ -38,16 +52,35 @@ class ColoredFormatter(logging.Formatter):
 
         name = f"{record.name[:self.NAME_WIDTH]:^{self.NAME_WIDTH}}"
         level = f"{record.levelname:^{self.LEVEL_WIDTH}}"
+        time = (
+            f"{self.COLORS['TIME']}"
+            f"{self.formatTime(record, '%H:%M:%S')}"
+            f"{self.RESET}"
+        )
 
-        name = f"{self.MODULE_COLOR}{name}{self.RESET}"
-        level = f"{level_color}{level}{self.RESET}"
-
-        time = self.formatTime(record, "%H:%M:%S")
-        time = f"{self.TIME_COLOR}{time}{self.RESET}"
+        name_colored = f"{self.COLORS['MODULE']}{name}{self.RESET}"
+        level_colored = f"{level_color}{level}{self.RESET}"
 
         message = record.getMessage()
 
-        return f"[{time}][{name}][{level}] {message}"
+        # highlight [ID: number]
+        def highlight_id(match):
+            return (
+                f"{self.COLORS['BRACKETS']}{match.group(1)}"  # [
+                f"{self.COLORS['ID']}{match.group(2)}"        # ID:
+                f"{self.COLORS['BRACKETS']}{match.group(3)}"  # space
+                f"{self.COLORS['NUMBER']}{match.group(4)}"    # number
+                f"{self.COLORS['BRACKETS']}{match.group(5)}{self.RESET}"  # ]
+            )
+        message = self.ID_PATTERN.sub(highlight_id, message)
+
+        # highlight keywords PLAYWRIGHT/BROWSER/HTTPX
+        def highlight_keywords(match):
+            color = self.COLORS.get(match.group(1), self.RESET)
+            return f"{color}{match.group(1)}{self.RESET}"
+        message = self.KEYWORDS_PATTERN.sub(highlight_keywords, message)
+
+        return f"[{time}][{name_colored}][{level_colored}] {message}"
 
 
 class Logger:
@@ -147,7 +180,7 @@ class Logger:
             char: The character to use for the separator.
             length: The length of the separator.
         """
-        self._logger.info("%s", char * length)
+        self._logger.info("\x1b[32m%s\x1b[0m", char * length)
 
     def set_level(self, level: str):
         """
