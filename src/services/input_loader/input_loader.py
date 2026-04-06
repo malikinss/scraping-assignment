@@ -4,134 +4,144 @@ from .deps import (
     pd,
     List,
     Optional,
-    urlparse,
+    URLUtils,
     Logger,
 )
 
 
-logger = Logger(__name__)
+logger = Logger("URLLoader")
 
 
 class URLInputLoader:
     """
-    Loader for extracting, cleaning, and validating URLs from a CSV file.
+    A class for loading and processing URLs from a CSV file.
 
-    This class provides a pipeline to:
-        1. Load URLs from a CSV file (first column, no header assumed).
-        2. Clean the URLs by removing duplicates and trimming whitespace.
-        3. Validate URLs to ensure they have a proper scheme and domain.
+    Attributes:
+        file_path (str): The path to the CSV file.
+        raw_data (Optional[pd.DataFrame]): The raw data loaded from the CSV
+        file.
+        urls (List[str]): The list of valid URLs.
+        _total_loaded (int): The total number of URLs loaded.
+        _duplicates_removed (int): The number of duplicate URLs removed.
+        _invalid_urls (int): The number of invalid URLs removed.
+
+    Methods:
+        load(self) -> "URLInputLoader": Loads the CSV file.
+        clean(self) -> "URLInputLoader": Cleans the data.
+        validate(self) -> "URLInputLoader": Validates the data.
+        get_urls(self) -> List[str]: Gets the list of valid URLs.
+
+    Raises:
+        ValueError: If the data is not loaded.
+        FileNotFoundError: If the file is not found.
+        pd.errors.EmptyDataError: If the file is empty.
+        pd.errors.ParserError: If the file is not parsed.
+        Exception: If any other error occurs.
+
+    Example:
+        >>> loader = URLInputLoader("urls.csv")
+        >>> loader.load().clean().validate()
+        >>> loader.get_urls()
     """
 
     def __init__(self, file_path: str):
         """
-        Initialize the URL input loader.
+        Initializes the URLInputLoader.
 
         Args:
-            file_path (str): Path to the CSV file containing URLs.
+            file_path (str): The path to the CSV file.
         """
-        print()
-        logger.debug(
-            f"Initializing URLInputLoader with file path: {file_path}")
         self.file_path: str = file_path
         self.raw_data: Optional[pd.DataFrame] = None
         self.urls: List[str] = []
 
+        # internal counters
+        self._total_loaded: int = 0
+        self._duplicates_removed: int = 0
+        self._invalid_urls: int = 0
+
     def load(self) -> "URLInputLoader":
         """
-        Load raw URLs from the CSV file.
-
-        Reads the first column of the CSV file into a DataFrame. Handles
-        file not found, empty file, parsing errors, and generic exceptions.
+        Loads the CSV file.
 
         Returns:
-            URLInputLoader: Self, to allow method chaining.
-
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            pd.errors.EmptyDataError: If the file is empty.
-            pd.errors.ParserError: If the CSV cannot be parsed.
-            Exception: For other errors during file reading.
+            URLInputLoader: The URLInputLoader instance.
         """
-        logger.debug(f"Loading URLs from file path: {self.file_path}")
         try:
             self.raw_data = pd.read_csv(self.file_path, header=None)
+            self._total_loaded = len(self.raw_data)
         except FileNotFoundError:
-            logger.error(f"File not found: {self.file_path}")
+            logger.error(f"Load failed: file not found path={self.file_path}")
             raise
         except pd.errors.EmptyDataError:
-            logger.error(f"File is empty: {self.file_path}")
+            logger.error(f"Load failed: empty file path={self.file_path}")
             raise
         except pd.errors.ParserError:
-            logger.error(f"Error parsing file: {self.file_path}")
+            logger.error(f"Load failed: parser error path={self.file_path}")
             raise
         except Exception as e:
-            logger.error(f"Error loading file: {e}")
+            logger.error(
+                f"Load failed: path={self.file_path} error={e}"
+            )
             raise
 
-        logger.debug(f"Loaded {len(self.raw_data)} rows")
         return self
 
     def clean(self) -> "URLInputLoader":
         """
-        Clean URLs by trimming whitespace and removing duplicates.
+        Cleans the data.
 
         Returns:
-            URLInputLoader: Self, to allow method chaining.
-
-        Raises:
-            ValueError: If data has not been loaded yet (call load() first).
+            URLInputLoader: The URLInputLoader instance.
         """
-        if self.raw_data is None:
-            raise ValueError("Data not loaded. Call load() first")
-
-        logger.debug("Cleaning URLs")
+        self._ensure_loaded()
         urls_series = self.raw_data.iloc[:, 0]
-        urls = urls_series.dropna().astype(str).str.strip()
-
-        before = len(urls)
-        unique_urls = urls.unique().tolist()
-        after = len(unique_urls)
-
-        logger.debug(f"Removed {before - after} duplicate URLs")
-
-        self.urls = unique_urls
+        urls_series = urls_series.dropna().astype(str).str.strip()
+        unique_urls = urls_series.unique()
+        self._duplicates_removed = len(urls_series) - len(unique_urls)
+        self.urls = unique_urls.tolist()
         return self
 
     def validate(self) -> "URLInputLoader":
         """
-        Validate URLs to ensure they have a valid HTTP/HTTPS scheme and domain.
+        Validates the data.
 
         Returns:
-            URLInputLoader: Self, to allow method chaining.
+            URLInputLoader: The URLInputLoader instance.
         """
-        logger.debug("Validating URLs")
-        valid_urls: List[str] = []
-        invalid_count: int = 0
-
-        for url in self.urls:
-            parsed = urlparse(url)
-            if parsed.scheme in ("http", "https") and parsed.netloc:
-                valid_urls.append(url)
-            else:
-                invalid_count += 1
-
-        logger.debug(f"Removed {invalid_count} invalid URLs")
+        self._ensure_loaded()
+        valid_urls: List[str] = [
+            url for url in self.urls if URLUtils.is_valid(url)
+        ]
+        self._invalid_urls = len(self.urls) - len(valid_urls)
         self.urls = valid_urls
         return self
 
     def get_urls(self) -> List[str]:
         """
-        Retrieve the processed list of valid URLs.
-
-        If URLs have not been loaded and processed yet, runs the full
-        pipeline: load -> clean -> validate.
+        Gets the list of valid URLs.
 
         Returns:
-            List[str]: List of unique, valid URLs.
+            List[str]: The list of valid URLs.
         """
         if not self.urls:
-            logger.debug("URLs not processed yet, running full pipeline")
             self.load().clean().validate()
 
-        logger.debug(f"Retrieved {len(self.urls)} URLs")
+            logger.info(
+                f"URLs loaded: "
+                f"total={self._total_loaded} "
+                f"valid={len(self.urls)} "
+                f"duplicates_removed={self._duplicates_removed} "
+                f"invalid={self._invalid_urls}"
+            )
         return self.urls
+
+    def _ensure_loaded(self):
+        """
+        Ensures that the data is loaded.
+
+        Raises:
+            ValueError: If the data is not loaded.
+        """
+        if self.raw_data is None:
+            raise ValueError("Data not loaded. Call load() first")
