@@ -6,13 +6,12 @@ This module contains the dependencies for the input loader service.
 
 import pandas as pd
 from typing import List, Optional
-from urllib.parse import urlparse
-from src.utils.logger import Logger
+from src.utils import URLUtils, Logger
 
 __all__ = [
     "pd",
     "List",
     "Optional",
-    "urlparse",
+    "URLUtils",
     "Logger",
 ]
