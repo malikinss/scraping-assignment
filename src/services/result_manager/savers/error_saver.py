@@ -2,13 +2,14 @@
 
 from .base import BaseSaver
 from .deps import (
+    Any,
     List,
     Path,
     Logger,
     ScrapeResult,
 )
 
-logger = Logger(__name__)
+logger = Logger("ErrorSaver")
 
 
 class ErrorLogger(BaseSaver):
@@ -25,8 +26,20 @@ class ErrorLogger(BaseSaver):
 
         Args:
             file_path (str): Path to the file where error logs will be stored.
+
+        Example:
+            >>> saver = ErrorLogger("errors.txt")
+            >>> saver.save([
+            ...     ScrapeResult(
+            ...         "url",
+            ...         "method",
+            ...         "status",
+            ...         "latency",
+            ...         "content_length",
+            ...         "error"
+            ...     ),
+            ... ])
         """
-        logger.debug(f"Initializing ErrorLogger with path={file_path}")
         self.file_path: Path = Path(file_path)
 
     def save(self, results: List[ScrapeResult]) -> None:
@@ -43,20 +56,53 @@ class ErrorLogger(BaseSaver):
 
         Raises:
             Exception: Propagates any exception raised during file writing.
+
+        Example:
+            >>> saver = ErrorLogger("errors.txt")
+            >>> saver.save([
+            ...     ScrapeResult(
+            ...         "url",
+            ...         "method",
+            ...         "status",
+            ...         "latency",
+            ...         "content_length",
+            ...         "error"
+            ...     ),
+            ... ])
         """
         if not results:
-            logger.info("No results provided to ErrorLogger.")
+            logger.debug("Error save skipped: no results")
             return
 
-        errors: List[ScrapeResult] = [
-            r for r in results if r.status.lower() == "failed"
-        ]
+        total = len(results)
 
-        if not errors:
-            logger.debug("No errors found in results.")
+        errors: List[ScrapeResult] = [r for r in results if r.is_error]
+        error_count = len(errors)
+
+        if error_count == 0:
+            logger.debug(
+                f"Error save skipped: no errors total={total}"
+            )
             return
 
-        logger.debug(f"Saving {len(errors)} errors to file: {self.file_path}")
+        def safe_str(value: Any) -> str:
+            """
+            Convert a value to string safely.
+            """
+            return str(value) if value is not None else "-"
+
+        def format_error(r: ScrapeResult) -> str:
+            """
+            Format a single error entry into a string.
+            """
+            fields = [
+                r.id,
+                r.url,
+                r.method,
+                r.status,
+                r.error,
+            ]
+            return " | ".join(safe_str(v) for v in fields) + "\n"
 
         def writer(f):
             """
@@ -65,10 +111,13 @@ class ErrorLogger(BaseSaver):
             Args:
                 f (IO[Any]): A file-like object opened for writing.
             """
-            logger.debug("Writing errors to file")
-            for r in errors:
-                line = f"{r.url} | {r.method} | {r.status} | {r.error}\n"
-                f.write(line)
-                logger.debug(f"Wrote line: {line.strip()}")
+            f.writelines(format_error(r) for r in errors)
 
         self.write_file(self.file_path, writer, description="error file")
+
+        logger.info(
+            f"Errors saved: "
+            f"path={self.file_path} "
+            f"errors={error_count} "
+            f"total={total}"
+        )
