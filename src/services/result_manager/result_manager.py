@@ -1,9 +1,9 @@
 # ./src/services/result_manager/result_manager.py
 
-from .deps import List, Logger, ScrapeResult
+from .deps import Dict, Callable, List, Logger, ScrapeResult
 from .savers import CSVResultSaver, ErrorLogger, JSONResultSaver
 
-logger = Logger(__name__)
+logger = Logger("ResultManager")
 
 
 class ResultManager:
@@ -25,18 +25,37 @@ class ResultManager:
             csv_path (str): Path to the CSV file for storing results.
             json_path (str): Path to the JSON file for storing results.
             error_log_path (str): Path to the file for logging failed results.
-        """
-        logger.debug(
-            f"Initializing ResultManager: "
-            f"csv={csv_path}, "
-            f"json={json_path}, "
-            f"error_log={error_log_path}"
-        )
-        self.csv_saver: CSVResultSaver = CSVResultSaver(csv_path)
-        self.json_saver: JSONResultSaver = JSONResultSaver(json_path)
-        self.error_logger: ErrorLogger = ErrorLogger(error_log_path)
 
-    def save_all(self, results: List[ScrapeResult]) -> None:
+        Raises:
+            None: Exceptions are caught and logged internally.
+
+        Returns:
+            None: Returns nothing.
+
+        Examples:
+            >>> result_manager = ResultManager(
+            ...     csv_path="results.csv",
+            ...     json_path="results.json",
+            ...     error_log_path="errors.log"
+            ... )
+            >>> result_manager.save_all([
+            ...     ScrapeResult(
+            ...         id="1",
+            ...         url="https://example.com",
+            ...         title="Example Domain",
+            ...         status="success",
+            ...         content="<p>Example Domain</p>",
+            ...         timestamp="2022-01-01T00:00:00Z"
+            ...     )
+            ... ])
+        """
+        self.savers: Dict[str, Callable[[List[ScrapeResult]], None]] = {
+            "csv": CSVResultSaver(csv_path).save,
+            "json": JSONResultSaver(json_path).save,
+            "error_log": ErrorLogger(error_log_path).save,
+        }
+
+    def save_all(self, results: List[ScrapeResult]) -> Dict[str, bool]:
         """
         Save results using all configured saver implementations.
 
@@ -49,21 +68,57 @@ class ResultManager:
 
         Raises:
             None: Exceptions are caught and logged internally.
+
+        Returns:
+            Dict[str, bool]: A dictionary mapping saver names to boolean
+                             success indicators.
+
+        Examples:
+            >>> result_manager = ResultManager(
+            ...     csv_path="results.csv",
+            ...     json_path="results.json",
+            ...     error_log_path="errors.log"
+            ... )
+            >>> statuses = result_manager.save_all([
+            ...     ScrapeResult(
+            ...         id="1",
+            ...         url="https://example.com",
+            ...         title="Example Domain",
+            ...         status="success",
+            ...         content="<p>Example Domain</p>",
+            ...         timestamp="2022-01-01T00:00:00Z"
+            ...     )
+            ... ])
+            >>> statuses
+            {'csv': True, 'json': True, 'error_log': True}
         """
-        logger.debug(f"Saving {len(results)} results")
+        if not results:
+            logger.debug("Save skipped: no results")
+            return {}
 
-        self._safe_save("CSV", self.csv_saver.save, results)
-        self._safe_save("JSON", self.json_saver.save, results)
-        self._safe_save("Error Log", self.error_logger.save, results)
+        statuses: Dict[str, bool] = {}
 
-        logger.debug("All save operations completed")
+        for name, save_func in self.savers.items():
+            statuses[name] = self._safe_save(name, save_func, results)
 
-    def _safe_save(self, name, save_func, results):
+        success_count: int = sum(statuses.values())
+
+        logger.info(
+            f"Save completed: "
+            f"success={success_count}/{len(statuses)} "
+            f"details={statuses}"
+        )
+
+        return statuses
+
+    def _safe_save(
+        self,
+        name: str,
+        save_func,
+        results: List[ScrapeResult]
+    ) -> bool:
         """
-        Execute a save operation safely with logging.
-
-        Wraps a saver call in a try-except block to ensure that failures
-        are logged but do not propagate further.
+        Executes a save operation safely with logging.
 
         Args:
             name (str): Human-readable name of the saver (for logging).
@@ -74,10 +129,36 @@ class ResultManager:
 
         Raises:
             None: Exceptions are caught and logged internally.
+
+        Returns:
+            bool: True if the save operation was successful, False otherwise.
+
+        Examples:
+            >>> result_manager = ResultManager(
+            ...     csv_path="results.csv",
+            ...     json_path="results.json",
+            ...     error_log_path="errors.log"
+            ... )
+            >>> result_manager._safe_save(
+            ...     "CSV",
+            ...     result_manager.csv_saver.save,
+            ...     [
+            ...         ScrapeResult(
+            ...             id="1",
+            ...             url="https://example.com",
+            ...             title="Example Domain",
+            ...             status="success",
+            ...             content="<p>Example Domain</p>",
+            ...             timestamp="2022-01-01T00:00:00Z"
+            ...         )
+            ...     ]
+            ... )
         """
         try:
-            logger.debug(f"Saving using {name} saver")
             save_func(results)
-            logger.debug(f"Successfully saved using {name} saver")
+            return True
         except Exception as e:
-            logger.error(f"Failed to save using {name} saver: {e}")
+            logger.error(
+                f"Save failed: target={name} error={e}"
+            )
+            return False
