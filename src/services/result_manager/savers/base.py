@@ -11,7 +11,7 @@ from .deps import (
     Any,
 )
 
-logger = Logger(__name__)
+logger = Logger("BaseSaver")
 
 
 class BaseSaver(ABC):
@@ -32,8 +32,15 @@ class BaseSaver(ABC):
 
         Raises:
             NotImplementedError: Must be implemented in subclasses.
+
+        Example:
+            >>> saver = BaseSaver()
+            >>> saver.save([ScrapeResult("url", "content", "status")])
+            NotImplementedError: Must be implemented in subclasses.
         """
-        pass
+        raise NotImplementedError(
+            "Subclasses must implement the `save` method."
+        )
 
     @staticmethod
     def write_file(
@@ -62,12 +69,20 @@ class BaseSaver(ABC):
 
         Raises:
             Exception: Propagates any exception raised during file writing.
+
+        Example:
+            >>> BaseSaver.write_file(
+            ...     Path("test.txt"),
+            ...     lambda f: f.write("test"),
+            ... )
+            Saving file: test.txt
+            file saved successfully to test.txt
         """
-        logger.info(f"Saving {description}: {file_path}")
         try:
             with file_path.open(mode, encoding="utf-8") as f:
                 write_func(f)
-            logger.info(f"{description} saved successfully to {file_path}")
-        except Exception as e:
-            logger.error(f"Failed to save {description}: {e}")
+        except Exception:
+            logger.exception(
+                f"Failed to save {description}: path={file_path}"
+            )
             raise
