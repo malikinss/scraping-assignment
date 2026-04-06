@@ -6,12 +6,15 @@ from .deps import (
     ScrapeStatus,
 )
 
-logger = Logger(__name__)
+logger = Logger("ContentDetector")
 
 
 class ContentDetector:
     """
     Detects the type of content based on text analysis.
+
+    Methods:
+        detect(content): Returns ScrapeStatus based on content analysis.
     """
 
     def detect(self, content: str) -> ScrapeStatus:
@@ -29,25 +32,15 @@ class ContentDetector:
             >>> detector.detect("Some content")
             ScrapeStatus.SUCCESS
         """
-        if not content:
-            logger.debug("Content detection: EMPTY (no content)")
-            return ScrapeStatus.EMPTY
-
-        length = len(content)
-
-        if self._is_empty(content):
-            logger.debug(f"Content detection: EMPTY (length={length})")
+        if not content or self._is_empty(content):
             return ScrapeStatus.EMPTY
 
         if self._is_captcha(content):
-            logger.debug(f"Content detection: CAPTCHA (length={length})")
             return ScrapeStatus.CAPTCHA
 
         if self._is_blocked(content):
-            logger.debug(f"Content detection: BLOCKED (length={length})")
             return ScrapeStatus.BLOCKED
 
-        logger.debug(f"Content detection: SUCCESS (length={length})")
         return ScrapeStatus.SUCCESS
 
     def _is_empty(self, content: str) -> bool:
