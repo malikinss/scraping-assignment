@@ -65,9 +65,9 @@ class ScrapeResult:
     @property
     def is_success(self) -> bool:
         """Returns True if the scrape was successful."""
-        return self.status.is_success()
+        return self.status.is_success
 
     @property
     def is_error(self) -> bool:
         """Returns True if the scrape failed."""
-        return self.status.is_non_success()
+        return self.status.is_non_success
