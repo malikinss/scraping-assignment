@@ -4,36 +4,37 @@ from .deps import (
     time,
     detector,
     Logger,
+    URLUtils,
     ScrapeMethod,
     ScrapeResult,
     ScrapeStatus,
+    Callable
 )
 
-logger = Logger(__name__)
+logger = Logger("ResultBuilder")
 
 
 class ResultBuilder:
     """
     Builder for constructing `ScrapeResult` objects.
 
-    This class encapsulates the logic for measuring request latency and
-    generating standardized `ScrapeResult` instances for different
-    scraping outcomes (success, failure, blocked, captcha, etc.).
+    Encapsulates logic for measuring request latency and generating
+    standardized `ScrapeResult` instances for different outcomes:
+    SUCCESS, FAILED, BLOCKED, CAPTCHA, EMPTY, TIMEOUT, PDF, etc.
 
-    It also provides a high-level `process` method that analyzes response
-    content and determines the appropriate result type automatically.
+    Provides both low-level builders and a high-level `process` method
+    that automatically determines the result type based on response content.
     """
 
     def __init__(self, method: ScrapeMethod):
         """
-        Initialize the result builder and start the timer.
+        Initialize the result builder and start the latency timer.
 
         Args:
             method (ScrapeMethod): The scraping method used.
         """
         self.method: ScrapeMethod = method
         self.start: float = time.perf_counter()
-        logger.debug(f"ResultBuilder initialized (method={self.method})")
 
     def start_timer(self) -> None:
         """
@@ -43,7 +44,6 @@ class ResultBuilder:
         for latency calculation.
         """
         self.start = time.perf_counter()
-        logger.debug("Timer started")
 
     def calc_latency(self) -> float:
         """
@@ -51,43 +51,39 @@ class ResultBuilder:
 
         Returns:
             float: The latency in seconds. Returns 0.0 if the timer
-                was not started.
-
-        Logs:
-            Warning if the timer was not started before calling this method.
+                   was not started.
         """
-        if self.start == 0:
-            logger.warning("Latency requested before timer start")
+        if not hasattr(self, 'start') or self.start is None:
+            logger.warning("Timer not started; returning 0 latency")
             return 0.0
-        latency = time.perf_counter() - self.start
-        logger.debug(f"Latency calculated: {latency:.3f}s")
-        return latency
+        return max(time.perf_counter() - self.start, 0.0)
 
     # --- Core builders ---
-    def build_success(self, url: str, text: str) -> ScrapeResult:
+    def build_success(self, id: int, url: str, text: str) -> ScrapeResult:
         """
         Build a successful scrape result.
 
         Args:
+            id (int): The scrape ID.
             url (str): The URL that was scraped.
             text (str): The retrieved content.
 
         Returns:
-            ScrapeResult: A result object marked as SUCCESS with content
-                and computed metadata.
-
-        Logs:
-            Info message with URL, method, latency, and content length.
+            ScrapeResult: A result object with status SUCCESS and metadata.
         """
         latency = self.calc_latency()
         content_length = len(text)
-
-        logger.info(
-            f"SUCCESS url={url} method={self.method} "
-            f"latency={latency:.3f}s length={content_length}"
+        msg = self.build_log_message(
+            ScrapeStatus.SUCCESS,
+            id,
+            url,
+            latency,
+            content_length
         )
+        logger.info(msg)
 
         return ScrapeResult(
+            id=id,
             url=url,
             method=self.method,
             latency=latency,
@@ -99,33 +95,40 @@ class ResultBuilder:
 
     def build_failure(
             self,
+            id: int,
             url: str,
             error: str,
             status: ScrapeStatus = ScrapeStatus.FAILED
     ) -> ScrapeResult:
-        """
-        Build a failed scrape result.
+        """Build a failed scrape result.
 
         Args:
+            id (int): The scrape ID.
             url (str): The URL that failed to be scraped.
             error (str): A human-readable error message.
             status (ScrapeStatus, optional): Specific failure status.
-                Defaults to `ScrapeStatus.FAILED`.
+                                             Defaults to ScrapeStatus.FAILED.
 
         Returns:
             ScrapeResult: A result object representing the failure.
-
-        Logs:
-            Warning message with URL, method, latency, and error.
         """
         latency = self.calc_latency()
+        msg = self.build_log_message(status, id, url, latency, 0, error)
 
-        logger.warning(
-            f"{status.value.upper()} url={url} method={self.method} "
-            f"latency={latency:.3f}s error={error}"
-        )
+        if status == ScrapeStatus.FAILED:
+            logger.error(msg)
+        elif status in (
+            ScrapeStatus.CAPTCHA,
+            ScrapeStatus.TIMEOUT,
+        ):
+            logger.warning(msg)
+        elif status == ScrapeStatus.BLOCKED:
+            logger.info(msg)
+        else:
+            logger.debug(msg)
 
         return ScrapeResult(
+            id=id,
             url=url,
             method=self.method,
             status=status,
@@ -134,122 +137,166 @@ class ResultBuilder:
             content_length=0,
         )
 
+    def build_log_message(
+        self,
+        status: ScrapeStatus,
+        id: int,
+        url: str,
+        latency: float,
+        content_length: int,
+        error: str = None
+    ) -> str:
+        """
+        Construct a standardized log message for a scrape result.
+
+        Args:
+            status (ScrapeStatus): The status of the scrape.
+            id (int): The scrape ID.
+            url (str): The scraped URL.
+            latency (float): Latency in seconds.
+            content_length (int): Length of response content.
+            error (str, optional): Error message if present.
+
+        Returns:
+            str: Formatted log message.
+        """
+        return (
+            f"[ID: {id}] "
+            f"[{status.value.upper()}]"
+            f"[{self.method.value.upper()}] "
+            f"url={URLUtils.short_url(url)} "
+            f"latency={latency:.3f}s "
+            f"content_length={content_length} "
+            f"error={error or "N/A"}"
+        )
+
     # --- Shortcuts ---
-    def build_empty(self, url: str) -> ScrapeResult:
+    def build_empty(self, id: int, url: str) -> ScrapeResult:
         """
-        Build an empty response result.
+        Build a result for an empty response.
 
         Args:
-            url (str): The URL that had an empty response.
+            id (int): The scrape ID.
+            url (str): The URL with empty response.
 
         Returns:
-            ScrapeResult: A result object marked as EMPTY.
-
-        Logs:
-            Debug message with URL.
+            ScrapeResult: Result object marked as EMPTY.
         """
-        logger.debug(f"Detected empty response: url={url}")
-        return self.build_failure(url, "Empty response", ScrapeStatus.EMPTY)
+        return self.build_failure(
+            id,
+            url,
+            "Empty response",
+            ScrapeStatus.EMPTY
+        )
 
-    def build_blocked(self, url: str) -> ScrapeResult:
+    def build_blocked(self, id: int, url: str) -> ScrapeResult:
         """
-        Build a blocked response result.
+        Build a result for a blocked response.
 
         Args:
-            url (str): The URL that was blocked.
+            id (int): The scrape ID.
+            url (str): The blocked URL.
 
         Returns:
-            ScrapeResult: A result object marked as BLOCKED.
-
-        Logs:
-            Debug message with URL.
+            ScrapeResult: Result object marked as BLOCKED.
         """
-        logger.debug(f"Detected blocked page: url={url}")
-        return self.build_failure(url, "Blocked by site", ScrapeStatus.BLOCKED)
+        return self.build_failure(
+            id,
+            url,
+            "Blocked by site",
+            ScrapeStatus.BLOCKED
+        )
 
-    def build_captcha(self, url: str) -> ScrapeResult:
+    def build_captcha(self, id: int, url: str) -> ScrapeResult:
         """
-        Build a CAPTCHA response result.
+        Build a result for a CAPTCHA response.
 
         Args:
-            url (str): The URL that had a CAPTCHA.
+            id (int): The scrape ID.
+            url (str): The URL where CAPTCHA was detected.
 
         Returns:
-            ScrapeResult: A result object marked as CAPTCHA.
-
-        Logs:
-            Debug message with URL.
+            ScrapeResult: Result object marked as CAPTCHA.
         """
-        logger.debug(f"Detected CAPTCHA: url={url}")
-        return self.build_failure(url, "CAPTCHA found", ScrapeStatus.CAPTCHA)
+        return self.build_failure(
+            id,
+            url,
+            "CAPTCHA found",
+            ScrapeStatus.CAPTCHA
+        )
 
-    def build_pdf(self, url: str) -> ScrapeResult:
+    def build_pdf(self, id: int, url: str) -> ScrapeResult:
         """
-        Build a PDF response result.
+        Build a result for a PDF response.
 
         Args:
-            url (str): The URL that had a PDF.
+            id (int): The scrape ID.
+            url (str): The URL pointing to a PDF.
 
         Returns:
-            ScrapeResult: A result object marked as PDF.
-
-        Logs:
-            Debug message with URL.
+            ScrapeResult: Result object marked as PDF.
         """
-        logger.debug(f"Detected PDF content: url={url}")
-        return self.build_failure(url, "PDF found", ScrapeStatus.PDF)
+        return self.build_failure(
+            id,
+            url,
+            "PDF found",
+            ScrapeStatus.PDF
+        )
 
-    def build_timeout(self, url: str) -> ScrapeResult:
+    def build_timeout(self, id: int, url: str) -> ScrapeResult:
         """
-        Build a timeout response result.
+        Build a result for a timeout response.
 
         Args:
+            id (int): The scrape ID.
             url (str): The URL that timed out.
 
         Returns:
-            ScrapeResult: A result object marked as TIMEOUT.
-
-        Logs:
-            Debug message with URL.
+            ScrapeResult: Result object marked as TIMEOUT.
         """
-        logger.debug(f"Timeout occurred: url={url}")
-        return self.build_failure(url, "Timeout", ScrapeStatus.TIMEOUT)
+        return self.build_failure(
+            id,
+            url,
+            "Timeout",
+            ScrapeStatus.TIMEOUT
+        )
 
     # --- Smart processor ---
-    def process(self, url: str, text: str) -> ScrapeResult:
+    def process(self, id: int, url: str, text: str) -> ScrapeResult:
         """
-        Process raw response content and build an appropriate result.
+        Process raw response content and determine the correct result type.
 
-        This method applies validation and detection logic to determine
-        the correct result type:
-            - Empty content → EMPTY
+        Applies validation and detection logic:
+            - Empty or whitespace-only content → EMPTY
             - CAPTCHA detected → CAPTCHA
             - Block detected → BLOCKED
             - Otherwise → SUCCESS
 
         Args:
+            id (int): The scrape ID.
             url (str): The URL that was scraped.
-            text (str): The raw response content.
+            text (str): Raw response content.
 
         Returns:
-            ScrapeResult: The constructed result object based on detected
+            ScrapeResult: The appropriate result object based on detected
                           status.
-
-        Logs:
-            Debug message with URL and status.
         """
-        logger.debug(f"Processing response: url={url}")
+        status_map = {
+            ScrapeStatus.CAPTCHA: self.build_captcha,
+            ScrapeStatus.BLOCKED: self.build_blocked,
+            ScrapeStatus.EMPTY: self.build_empty,
+        }
 
         if not text or not text.strip():
-            return self.build_empty(url)
+            return self.build_empty(id, url)
 
-        status = detector.detect(text)
-        logger.debug(f"Detection result: url={url} status={status}")
+        status: ScrapeStatus = detector.detect(text)
+        builder: Callable[[int, str], ScrapeResult] = status_map.get(
+            status, self.build_success)
 
-        if status == ScrapeStatus.CAPTCHA:
-            return self.build_captcha(url)
+        if builder == self.build_success:
+            result: ScrapeResult = builder(id, url, text)
+        else:
+            result: ScrapeResult = builder(id, url)
 
-        if status == ScrapeStatus.BLOCKED:
-            return self.build_blocked(url)
-
-        return self.build_success(url, text)
+        return result
