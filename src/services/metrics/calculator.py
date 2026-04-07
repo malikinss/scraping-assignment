@@ -4,6 +4,7 @@ from .deps import (
     np,
     List,
     Dict,
+    Tuple,
     Logger,
     ScrapeStatus,
     ScrapeResult,
@@ -11,144 +12,145 @@ from .deps import (
 from .models import MetricsSummary
 from .aggregator import MetricsAggregator
 
-logger = Logger(__name__)
+logger = Logger("MetricsCalculator")
 
 
 class MetricsCalculator:
     """
-    Calculates metrics summary from a list of ScrapeResult objects.
+    Utility class for computing aggregated metrics from scraping results.
+
+    This class provides methods to calculate:
+        - Request success/error rates
+        - Latency statistics (average and percentile)
+        - Content length statistics
+
+    All calculations are based on a collection of `ScrapeResult` objects.
     """
 
     @classmethod
     def calculate(cls, results: List[ScrapeResult]) -> MetricsSummary:
         """
-        Calculates success/error rates, latency and content length metrics.
+        Compute a full metrics summary from scrape results.
+
+        This method aggregates multiple metrics including:
+            - Total number of requests
+            - Success and error rates per status
+            - Average latency
+            - 95th percentile latency (P95)
+            - Average content length
 
         Args:
-            results (List[ScrapeResult]): List of scrape results.
+            results (List[ScrapeResult]): List of scraping results to analyze.
 
         Returns:
-            MetricsSummary: Aggregated metrics.
+            MetricsSummary: Object containing all calculated metrics.
+
+        Raises:
+            ValueError: If the input results list is empty.
         """
         if not results:
-            logger.error("No results to calculate metrics")
             raise ValueError("No results to calculate metrics")
 
-        logger.debug("Calculating metrics")
         total = len(results)
-        logger.debug(f"Total requests: {total}")
 
-        aggregator = MetricsAggregator()
-        grouped_by_status = aggregator.group_by_status(results)
+        grouped_by_status = MetricsAggregator().group_by_status(results)
 
-        rates = cls._calculate_rates(grouped_by_status)
+        rates = cls._calculate_rates(grouped_by_status, total)
         avg_latency, p95_latency = cls._calculate_latency(results)
         avg_content_length = cls._calculate_content_length(results)
 
-        logger.debug("Metrics calculated successfully")
         return MetricsSummary(
             total_requests=total,
-            success_rate=rates["success_rate"],
-            blocked_rate=rates["blocked_rate"],
-            empty_rate=rates["empty_rate"],
-            captcha_rate=rates["captcha_rate"],
-            timeout_rate=rates["timeout_rate"],
-            pdf_rate=rates["pdf_rate"],
-            image_rate=rates["image_rate"],
-            video_rate=rates["video_rate"],
-            audio_rate=rates["audio_rate"],
-            error_rate=rates["error_rate"],
             avg_latency=avg_latency,
             p95_latency=p95_latency,
             avg_content_length=avg_content_length,
+            **rates,
         )
 
     @staticmethod
     def _calculate_rates(
-        grouped_by_status: Dict[ScrapeStatus, int]
+        grouped: Dict[ScrapeStatus, int],
+        total: int
     ) -> Dict[str, float]:
         """
-        Calculates success/error rates from grouped results.
+        Calculate normalized rates for each scrape status.
+
+        Each rate is computed as:
+            count(status) / total
 
         Args:
-            grouped_by_status (Dict[ScrapeStatus, int]): Dictionary mapping
-                                                         each ScrapeStatus to
-                                                         the count of results.
+            grouped (Dict[ScrapeStatus, int]): Mapping of scrape statuses
+                to their occurrence counts.
+            total (int): Total number of results.
 
         Returns:
-            Dict[str, float]: Dictionary mapping each rate name to its value.
+            Dict[str, float]: Dictionary where keys are in the format
+                "<status>_rate" (e.g., "success_rate") and values are
+                normalized rates in the range [0.0, 1.0].
+
+        Notes:
+            Missing statuses in the input dictionary are treated as zero.
         """
-        logger.debug("Calculating rates")
-        total = sum(grouped_by_status.values())
-        logger.debug(f"Total requests: {total}")
+        def rate(status: ScrapeStatus) -> float:
+            return grouped.get(status, 0) / total
 
-        success_count = grouped_by_status.get(ScrapeStatus.SUCCESS, 0)
-        blocked_count = grouped_by_status.get(ScrapeStatus.BLOCKED, 0)
-        empty_count = grouped_by_status.get(ScrapeStatus.EMPTY, 0)
-        captcha_count = grouped_by_status.get(ScrapeStatus.CAPTCHA, 0)
-        timeout_count = grouped_by_status.get(ScrapeStatus.TIMEOUT, 0)
-        pdf_count = grouped_by_status.get(ScrapeStatus.PDF, 0)
-        image_count = grouped_by_status.get(ScrapeStatus.IMAGE, 0)
-        video_count = grouped_by_status.get(ScrapeStatus.VIDEO, 0)
-        audio_count = grouped_by_status.get(ScrapeStatus.AUDIO, 0)
-        error_count = grouped_by_status.get(ScrapeStatus.FAILED, 0)
-
-        logger.debug("Rates calculated successfully")
         return {
-            "success_rate": success_count / total,
-            "blocked_rate": blocked_count / total,
-            "empty_rate": empty_count / total,
-            "captcha_rate": captcha_count / total,
-            "timeout_rate": timeout_count / total,
-            "pdf_rate": pdf_count / total,
-            "image_rate": image_count / total,
-            "video_rate": video_count / total,
-            "audio_rate": audio_count / total,
-            "error_rate": error_count / total,
+            f"{status.name.lower()}_rate": rate(status)
+            for status in ScrapeStatus
         }
 
     @staticmethod
-    def _calculate_latency(results: List[ScrapeResult]):
+    def _calculate_latency(results: List[ScrapeResult]) -> Tuple[float, float]:
         """
-        Calculates average and 95th percentile latency from scrape results.
+        Calculate latency statistics from scrape results.
+
+        Extracts latency values and computes:
+            - Mean (average) latency
+            - 95th percentile latency (P95)
 
         Args:
-            results (List[ScrapeResult]): List of scrape results.
+            results (List[ScrapeResult]): List of scraping results.
 
         Returns:
-            Tuple[float, float]: Tuple containing average latency and 95th
-                                 percentile latency.
+            Tuple[float, float]: A tuple containing:
+                - Average latency (float)
+                - 95th percentile latency (float)
+
+        Notes:
+            Results with missing (`None`) latency values are ignored.
+            Returns (0.0, 0.0) if no valid latency values are present.
         """
-        logger.debug("Calculating latency")
 
         latencies = [r.latency for r in results if r.latency is not None]
-        avg_latency = sum(latencies) / len(latencies) if latencies else 0
-        p95_latency = np.percentile(latencies, 95) if latencies else 0
 
-        logger.debug("Latency calculated successfully")
-        return avg_latency, p95_latency
+        if not latencies:
+            return 0.0, 0.0
+
+        return (
+            float(np.mean(latencies)),
+            float(np.percentile(latencies, 95))
+        )
 
     @staticmethod
     def _calculate_content_length(results: List[ScrapeResult]):
         """
-        Calculates average content length from scrape results.
+        Calculate the average content length from scrape results.
 
         Args:
-            results (List[ScrapeResult]): List of scrape results.
+            results (List[ScrapeResult]): List of scraping results.
 
         Returns:
-            float: Average content length.
-        """
-        logger.debug("Calculating content length")
+            float: Average content length. Returns 0.0 if no valid values
+                   exist.
 
-        content_lengths = [
+        Notes:
+            Results with missing (`None`) content_length values are ignored.
+        """
+
+        values = [
             r.content_length
             for r in results
             if r.content_length is not None
         ]
 
-        avg_content_length = sum(content_lengths) / \
-            len(content_lengths) if content_lengths else 0
-
-        logger.debug("Content length calculated successfully")
-        return avg_content_length
+        return sum(values) / len(values) if values else 0.0
