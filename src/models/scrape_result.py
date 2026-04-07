@@ -1,6 +1,6 @@
 # ./src/models/scrape_result.py
 
-from .deps import Optional, dataclass, asdict
+from .deps import Optional, dataclass, asdict, List
 from .enums import ScrapeStatus, ScrapeMethod
 
 
@@ -71,3 +71,6 @@ class ScrapeResult:
     def is_error(self) -> bool:
         """Returns True if the scrape failed."""
         return self.status.is_non_success
+
+
+ScrapeResults = List[ScrapeResult]
