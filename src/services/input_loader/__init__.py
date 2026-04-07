@@ -13,6 +13,6 @@ Example:
     urls = loader.load().clean().validate().get_urls()
 """
 
-from .input_loader import URLInputLoader
+from .input_loader import URLInputLoader, URL, URLs
 
-__all__ = ["URLInputLoader"]
+__all__ = ["URLInputLoader", "URL", "URLs"]

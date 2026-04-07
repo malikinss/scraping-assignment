@@ -12,6 +12,10 @@ from .deps import (
 logger = Logger("URLLoader")
 
 
+URL = str
+URLs = List[URL]
+
+
 class URLInputLoader:
     """
     A class for loading and processing URLs from a CSV file.
@@ -53,7 +57,7 @@ class URLInputLoader:
         """
         self.file_path: str = file_path
         self.raw_data: Optional[pd.DataFrame] = None
-        self.urls: List[str] = []
+        self.urls: URLs = []
 
         # internal counters
         self._total_loaded: int = 0
@@ -117,7 +121,7 @@ class URLInputLoader:
         self.urls = valid_urls
         return self
 
-    def get_urls(self) -> List[str]:
+    def get_urls(self) -> URLs:
         """
         Gets the list of valid URLs.
 
