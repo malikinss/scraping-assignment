@@ -5,6 +5,7 @@ from .deps import (
     asyncio,
     Optional,
     Logger,
+    URLUtils,
     settings,
     proxy_manager,
     ScrapeMethod,
@@ -13,61 +14,48 @@ from .deps import (
 
 from .result_builder import ResultBuilder
 
-logger = Logger(__name__)
+Response = httpx.Response
+Client = httpx.AsyncClient
+
+logger = Logger("HTTPScraper")
 
 
 class HTTPScraper:
     """
-    Asynchronous HTTP scraper with retry, backoff, and response classification.
+    Asynchronous HTTP scraper with retry, backoff, and PDF detection.
 
-    This class uses `httpx.AsyncClient` to fetch URLs, handles retries with
-    exponential backoff, detects PDFs, and constructs standardized
-    `ScrapeResult` objects using `ResultBuilder`.
-
-    Attributes:
-        timeout (float): Request timeout in seconds.
-        retries (int): Number of retry attempts on failure.
-        proxy (Optional[str]): HTTP proxy URL if configured.
-        client (httpx.AsyncClient): Async HTTP client instance.
+    Uses `httpx.AsyncClient` to fetch URLs with configurable timeout,
+    retries, and proxy support. Integrates with `ResultBuilder` to produce
+    standardized `ScrapeResult` objects, including SUCCESS, FAILURE,
+    TIMEOUT, and PDF responses.
     """
 
     def __init__(self):
         """
-        Initialize the HTTP scraper with settings and proxy.
+        Initialize the HTTPScraper with timeout, retries, and proxy settings.
 
-        Returns:
-            None
-
-        Logs:
-            - Debug message with the following format:
-                HTTPScraper initialized (timeout=..., retries=..., proxy=...)
+        Attributes:
+            timeout (float): HTTP request timeout in seconds.
+            retries (int): Maximum number of retry attempts.
+            proxy (Optional[str]): Proxy URL for HTTP requests.
+            client (Client): Async HTTP client instance.
         """
         self.timeout: float = settings.http_timeout
         self.retries: int = settings.retries
         self.proxy: Optional[str] = proxy_manager.get_httpx_proxy().get(
             settings.protocol
         )
-        print()
-        self.client: httpx.AsyncClient = self._build_client()
-        logger.debug(
-            f"HTTPScraper initialized (timeout={self.timeout}, "
-            f"retries={self.retries}, proxy={self.proxy})"
-        )
+        self.client: Client = self._build_client()
 
-    def _build_client(self) -> httpx.AsyncClient:
+    def _build_client(self) -> Client:
         """
-        Create and configure the asynchronous HTTP client.
+        Build an `httpx.AsyncClient` with headers, timeout, proxy,
+        and redirects.
 
         Returns:
-            httpx.AsyncClient: Configured async client with headers,
-                timeout, proxy, and redirect handling.
-
-        Logs:
-            - Debug message with the following format:
-                Building HTTP client
+            Client: Configured asynchronous HTTP client.
         """
-        logger.debug("Building HTTP client")
-        return httpx.AsyncClient(
+        return Client(
             timeout=self.timeout,
             headers={
                 "User-Agent": settings.user_agent,
@@ -77,162 +65,137 @@ class HTTPScraper:
             follow_redirects=True,
         )
 
-    async def _request_with_retry(self, url: str) -> Optional[httpx.Response]:
+    async def _request_with_retry(
+        self, id: int, url: str
+    ) -> Optional[Response]:
         """
-        Perform an HTTP GET request with retries and backoff.
+        Perform an HTTP GET request with retry and exponential backoff.
 
         Args:
-            url (str): URL to fetch.
+            id (int): The scrape ID for logging purposes.
+            url (str): The URL to fetch.
 
         Returns:
-            Optional[httpx.Response]: HTTP response if successful,
-                                      otherwise None.
-
-        Notes:
-            - Retries on non-200 responses, timeouts, and request errors.
-            - Applies exponential backoff between attempts.
-
-        Logs:
-            - Debug message with the following format:
-                Requesting {url} (attempt {attempt})
-            - Debug message with the following format:
-                Received 200 OK: {url} (attempt {attempt})
-            - Warning message with the following format:
-                Non-200 status: {status_code} url=... attempt=...
-            - Warning message with the following format:
-                Timeout on attempt {attempt} url=...
-            - Warning message with the following format:
-                Request error on attempt {attempt} url=...: {e}
-            - Error message with the following format:
-                All retries failed for {url}
+            Optional[Response]: The HTTP response if successful; `None`
+            otherwise.
         """
-        for attempt in range(self.retries + 1):
+        short_url = URLUtils.short_url(url)
+
+        for attempt in range(1, self.retries + 1):
             try:
-                logger.debug(f"Requesting {url} (attempt {attempt})")
-                response: httpx.Response = await self.client.get(url)
+                log = (
+                    f"[ID: {id}] "
+                    f"url={short_url} "
+                    f"attempt={attempt}/{self.retries}"
+                )
+
+                if attempt > 1:
+                    logger.debug(f"{log} timeout={self.timeout}")
+
+                response: Response = await self.client.get(url)
 
                 if response.status_code == 200:
-                    logger.debug(f"Received 200 OK: {url} (attempt {attempt})")
                     return response
 
-                logger.warning(
-                    f"Non-200 status: {response.status_code} url={url} "
-                    f"attempt={attempt}"
-                )
+                logger.warning(f"{log} Non-200 status: {response.status_code}")
 
             except httpx.TimeoutException:
-                logger.warning(
-                    f"Timeout on attempt {attempt} url={url}"
-                )
+                logger.warning(f"{log} HTTP timeout")
 
             except httpx.RequestError as e:
-                logger.warning(
-                    f"Request error on attempt {attempt} url={url}: {e}"
+                msg = (
+                    f"{log} "
+                    f"HTTP request error: "
+                    f"error={e if e else "Unknown error"}"
                 )
+                if attempt == self.retries:
+                    logger.warning(msg)
+                else:
+                    logger.debug(msg)
 
             if attempt < self.retries:
-                await self._backoff(attempt)
+                await self._backoff(id, attempt)
 
-        logger.error(f"All retries failed for {url}")
+        logger.error(f"{log}: All retries failed")
         return None
 
-    async def _backoff(self, attempt: int) -> None:
+    async def _backoff(self, id: int, attempt: int) -> None:
         """
-        Apply exponential backoff before retrying a request.
+        Apply exponential backoff delay between retries.
 
         Args:
-            attempt (int): Current retry attempt (0-based).
-
-        Notes:
-            - Delay is min(2 ** attempt, 10) seconds.
-
-        Logs:
-            - Debug message with the following format:
-                Backoff: sleeping {delay:.2f}s before next attempt
+            id (int): The scrape ID for logging.
+            attempt (int): Current retry attempt number.
         """
         delay: float = min(2 ** attempt, 10)
-        logger.debug(f"Backoff: sleeping {delay:.2f}s before next attempt")
+        if self.retries > 1:
+            msg = (
+                f"[ID: {id}] "
+                f"Backoff: "
+                f"attempt={attempt}/{self.retries} "
+                f"sleep={delay:.2f}s"
+            )
+            logger.debug(msg)
         await asyncio.sleep(delay)
 
     async def close(self) -> None:
         """
-        Close the HTTP client and release resources.
-
-        Logs:
-            - Debug message with the following format:
-                HTTP client closed
+        Close the underlying HTTP client and release resources.
         """
-        await self.client.close()
-        logger.debug("HTTP client closed")
+        await self.client.aclose()
 
-    def _is_pdf(self, response: httpx.Response) -> bool:
+    def _is_pdf(self, response: Response) -> bool:
         """
-        Check if the HTTP response contains a PDF.
+        Check if the HTTP response is a PDF document.
+
+        Detection is based on content-type header, URL path, and utility
+        function `URLUtils.is_pdf`.
 
         Args:
-            response (httpx.Response): HTTP response to check.
+            response (Response): The HTTP response object.
 
         Returns:
-            bool: True if the response is a PDF, False otherwise.
-
-        Logs:
-            - Debug message with the following format:
-                PDF detected: {response.url}
+            bool: `True` if the response is a PDF, `False` otherwise.
         """
         content_type: str = response.headers.get("Content-Type", "").lower()
         is_pdf = (
             "application/pdf" in content_type
             or response.url.path.endswith(".pdf")
         )
-
-        if is_pdf:
-            logger.debug(f"PDF detected: {response.url}")
-
+        is_pdf = is_pdf and URLUtils.is_pdf(response.url)
         return is_pdf
 
-    async def fetch(self, url: str) -> ScrapeResult:
+    async def fetch(self, id: int, url: str) -> ScrapeResult:
         """
-        Fetch a URL asynchronously and return a standardized scrape result.
+        Fetch a URL and return a standardized `ScrapeResult`.
 
-        Handles retries, PDF detection, timeouts, and unexpected errors.
+        Applies retry logic, PDF detection, and response content analysis
+        via `ResultBuilder`. Handles exceptions and timeouts gracefully.
 
         Args:
-            url (str): URL to fetch.
+            id (int): The scrape ID.
+            url (str): The URL to fetch.
 
         Returns:
-            ScrapeResult: Result object describing the outcome of the request.
-
-        Logs:
-            - Info message with the following format:
-                Starting fetch: {url}
-            - Warning message with the following format:
-                No response received: {url}
-            - Exception message with the following format:
-                Unexpected error during fetch: {url}: {e}
+            ScrapeResult: The result object representing the scrape outcome.
         """
-        logger.info(f"Starting fetch: {url}")
         builder: ResultBuilder = ResultBuilder(ScrapeMethod.HTTPX)
 
-        response: Optional[httpx.Response] = None
+        response: Optional[Response] = None
 
         try:
-            response = await self._request_with_retry(url)
+            response = await self._request_with_retry(id, url)
 
             if response is None:
-                logger.warning(f"No response received: {url}")
-                return builder.build_failure(url, "No response")
+                return builder.build_failure(id, url, "No response")
 
             if self._is_pdf(response):
-                return builder.build_pdf(url)
+                return builder.build_pdf(id, url)
 
-            text = response.text
-
-            return builder.process(url, text)
+            return builder.process(id, url, response.text)
 
         except httpx.TimeoutException:
-            logger.warning(f"Fetch timeout: {url}")
-            return builder.build_timeout(url)
+            return builder.build_timeout(id, url)
 
         except Exception as e:
-            logger.exception(f"Unexpected error during fetch: {url}")
-            return builder.build_failure(url, str(e))
+            return builder.build_failure(id, url, str(e))
