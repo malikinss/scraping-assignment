@@ -1,28 +1,37 @@
 # ./src/services/metrics/models.py
 
-from .deps import Dict, Any, dataclass
+from .deps import Dict, Any, dataclass, asdict, ClassVar, Tuple
+
+MetricFieldSpec = Tuple[Tuple[str, str, str], ...]
 
 
 @dataclass
 class MetricsSummary:
     """
-    Summary statistics for scraping metrics.
+    Summary statistics for scraping results.
+
+    This class aggregates overall request metrics, including:
+        - Total requests
+        - Success, failure, and error rates
+        - Latency statistics (average and 95th percentile)
+        - Average content length
+        - Optional rates for specific content types (PDF, image, video, etc.)
 
     Attributes:
-        total_requests (int): Total number of requests made.
-        success_rate (float): Ratio of successful requests (0-1).
-        blocked_rate (float): Ratio of blocked requests (0-1).
-        empty_rate (float): Ratio of empty responses (0-1).
-        captcha_rate (float): Ratio of CAPTCHA responses (0-1).
-        timeout_rate (float): Ratio of timed-out requests (0-1).
-        pdf_rate (float): Ratio of PDF responses (0-1).
-        image_rate (float): Ratio of image responses (0-1).
-        video_rate (float): Ratio of video responses (0-1).
-        audio_rate (float): Ratio of audio responses (0-1).
-        error_rate (float): Ratio of error responses (0-1).
-        avg_latency (float): Average response latency in seconds.
-        p95_latency (float): 95th percentile of response latency in seconds.
-        avg_content_length (float): Average response content length in bytes.
+        total_requests (int): Total number of requests processed.
+        success_rate (float): Ratio of successful requests.
+        blocked_rate (float): Ratio of blocked responses.
+        empty_rate (float): Ratio of empty responses.
+        captcha_rate (float): Ratio of CAPTCHA responses.
+        timeout_rate (float): Ratio of timeout responses.
+        pdf_rate (float): Ratio of PDF responses.
+        image_rate (float): Ratio of image responses.
+        video_rate (float): Ratio of video responses.
+        audio_rate (float): Ratio of audio responses.
+        failed_rate (float): Ratio of failed requests.
+        avg_latency (float): Average latency of requests in seconds.
+        p95_latency (float): 95th percentile latency in seconds.
+        avg_content_length (float): Average content length in bytes.
     """
 
     total_requests: int = 0
@@ -36,57 +45,105 @@ class MetricsSummary:
     image_rate: float = 0.0
     video_rate: float = 0.0
     audio_rate: float = 0.0
-    error_rate: float = 0.0
+    failed_rate: float = 0.0
 
     avg_latency: float = 0.0
     p95_latency: float = 0.0
 
     avg_content_length: float = 0.0
 
-    def __str__(self) -> str:
+    _FIELDS: ClassVar[MetricFieldSpec] = (
+        ("total_requests", "Total requests", "{}"),
+        ("success_rate", "Success rate", "{:.2%}"),
+        ("failed_rate", "Failed rate", "{:.2%}"),
+        ("blocked_rate", "Blocked rate", "{:.2%}"),
+        ("empty_rate", "Empty rate", "{:.2%}"),
+        ("captcha_rate", "Captcha rate", "{:.2%}"),
+        ("timeout_rate", "Timeout rate", "{:.2%}"),
+        ("pdf_rate", "PDF rate", "{:.2%}"),
+        ("image_rate", "Image rate", "{:.2%}"),
+        ("video_rate", "Video rate", "{:.2%}"),
+        ("audio_rate", "Audio rate", "{:.2%}"),
+        ("avg_latency", "Avg latency", "{:.2f}s"),
+        ("p95_latency", "P95 latency", "{:.2f}s"),
+        ("avg_content_length", "Avg content length", "{:.2f}")
+    )
+
+    def _should_include(self, field: str, value: Any) -> bool:
         """
-        Returns a string representation of the metrics summary.
+        Determine whether a field should be included in the metrics summary.
+
+        Args:
+            field (str): The name of the field.
+            value (Any): The value of the field.
+
+        Returns:
+            bool: True if the field should be included, False otherwise.
+        """
+        if field == "total_requests":
+            return True
+        return value not in (None, 0, 0.0)
+
+    def _format(self, sep: str = "\n") -> str:
+        """
+        Format the metrics summary as a string.
+
+        Args:
+            sep (str): The separator to use between metrics.
 
         Returns:
             str: String representation of the metrics summary.
         """
-        return (
-            f"Total requests: {self.total_requests}\n"
-            f"Success rate: {self.success_rate:.2%}\n"
-            f"Error rate: {self.error_rate:.2%}\n"
-            f"Blocked rate: {self.blocked_rate:.2%}\n"
-            f"Empty rate: {self.empty_rate:.2%}\n"
-            f"Captcha rate: {self.captcha_rate:.2%}\n"
-            f"Timeout rate: {self.timeout_rate:.2%}\n"
-            f"PDF rate: {self.pdf_rate:.2%}\n"
-            f"Image rate: {self.image_rate:.2%}\n"
-            f"Video rate: {self.video_rate:.2%}\n"
-            f"Audio rate: {self.audio_rate:.2%}\n"
-            f"Avg latency: {self.avg_latency:.2f}s\n"
-            f"P95 latency: {self.p95_latency:.2f}s\n"
-            f"Avg content length: {self.avg_content_length:.2f}"
-        )
+        lines = []
 
-    def to_dict(self) -> Dict[str, Any]:
+        for field, label, fmt in self._FIELDS:
+            value = getattr(self, field, None)
+
+            if not self._should_include(field, value):
+                continue
+
+            try:
+                formatted = fmt.format(value)
+            except Exception:
+                formatted = str(value)
+
+            lines.append(f"{label}: {formatted}")
+
+        return sep.join(lines)
+
+    def __str__(self) -> str:
         """
-        Converts the metrics summary to a dictionary.
+        String representation of the metrics summary.
 
         Returns:
-            Dict[str, Any]: Dictionary containing the metrics summary.
+            str: String representation of the metrics summary.
         """
-        return {
-            "total_requests": self.total_requests,
-            "success_rate": self.success_rate,
-            "error_rate": self.error_rate,
-            "blocked_rate": self.blocked_rate,
-            "empty_rate": self.empty_rate,
-            "captcha_rate": self.captcha_rate,
-            "timeout_rate": self.timeout_rate,
-            "pdf_rate": self.pdf_rate,
-            "image_rate": self.image_rate,
-            "video_rate": self.video_rate,
-            "audio_rate": self.audio_rate,
-            "avg_latency": self.avg_latency,
-            "p95_latency": self.p95_latency,
-            "avg_content_length": self.avg_content_length,
-        }
+        return self._format()
+
+    def to_log(self) -> str:
+        """
+        Returns a string representation of the metrics summary for logging.
+
+        Returns:
+            str: Metrics formatted in a single line with separators.
+        """
+        return self._format(sep=" | ")
+
+    def to_dict(self, exclude_zero: bool = False) -> Dict[str, Any]:
+        """
+        Convert metrics summary to a dictionary.
+
+        Args:
+            exclude_zero (bool): Whether to exclude zero values.
+
+        Returns:
+            Dict[str, Any]: Dictionary representation of the metrics.
+        """
+        data = asdict(self)
+        if exclude_zero:
+            data = {
+                k: v
+                for k, v in data.items()
+                if not (isinstance(v, (int, float)) and v == 0)
+            }
+        return data
