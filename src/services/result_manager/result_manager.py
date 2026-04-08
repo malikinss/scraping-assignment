@@ -55,9 +55,15 @@ class ResultManager:
             "error_log": ErrorLogger(error_log_path).save,
         }
 
-    def save_all(self, results: List[ScrapeResult]) -> Dict[str, bool]:
+    def save_all(
+        self,
+        results: List[ScrapeResult],
+        only_csv: bool = False
+    ) -> Dict[str, bool]:
         """
         Save results using all configured saver implementations.
+
+        If only_csv is True, only save to CSV file.
 
         Each saver is executed independently. Failures in one saver do not
         interrupt the execution of others.
@@ -65,6 +71,7 @@ class ResultManager:
         Args:
             results (List[ScrapeResult]): A list of `ScrapeResult` instances
                                           to be saved.
+            only_csv (bool): If True, only save to CSV file.
 
         Raises:
             None: Exceptions are caught and logged internally.
@@ -99,6 +106,8 @@ class ResultManager:
         statuses: Dict[str, bool] = {}
 
         for name, save_func in self.savers.items():
+            if only_csv and name != "csv":
+                continue
             statuses[name] = self._safe_save(name, save_func, results)
 
         success_count: int = sum(statuses.values())
