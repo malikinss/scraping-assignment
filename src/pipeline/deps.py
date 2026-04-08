@@ -19,6 +19,7 @@ from src.services import (
     ResultManager,
     MetricsCalculator,
     MetricsAggregator,
+    MetricsReporter
 )
 
 __all__ = [
@@ -39,4 +40,5 @@ __all__ = [
     "ResultManager",
     "MetricsCalculator",
     "MetricsAggregator",
+    "MetricsReporter"
 ]
