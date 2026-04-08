@@ -9,7 +9,7 @@ from dataclasses import dataclass, asdict
 from typing import List, Dict, Any, Callable, TypeVar, Tuple, ClassVar
 from collections import defaultdict
 from src.utils.logger import Logger
-from src.models import ScrapeResult, ScrapeMethod, ScrapeStatus
+from src.models import ScrapeResult, ScrapeMethod, ScrapeStatus, ScrapeResults
 
 __all__ = [
     "np",
@@ -27,4 +27,5 @@ __all__ = [
     "ScrapeResult",
     "ScrapeMethod",
     "ScrapeStatus",
+    "ScrapeResults",
 ]
