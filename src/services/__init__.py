@@ -4,10 +4,16 @@
 This package contains the services used by the application.
 """
 
+from .result_manager import ResultManager
 from .input_loader import URLInputLoader, URL, URLs
 from .content_detector import ContentDetector, detector
-from .metrics import MetricsCalculator, MetricsAggregator, MetricsSummary
-from .result_manager import ResultManager
+from .metrics import (
+    MetricsCalculator,
+    MetricsAggregator,
+    MetricsSummary,
+    MetricsReporter
+)
+
 
 __all__ = [
     "URL",
@@ -18,5 +24,6 @@ __all__ = [
     "MetricsCalculator",
     "MetricsAggregator",
     "MetricsSummary",
+    "MetricsReporter",
     "ResultManager"
 ]
