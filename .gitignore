@@ -9,3 +9,10 @@ __pycache__/
 tmp.md
 src/clean.py
 solution.md
+urls.csv
+results.csv
+results.json
+results.error
+task.md
+src.md
+structure.md
