@@ -7,8 +7,7 @@ from .deps import (
     URLInputLoader,
     ResultManager,
     ScrapeResults,
-    MetricsCalculator,
-    MetricsAggregator,
+    MetricsReporter,
     Logger,
 )
 from .orchestrator import PipelineOrchestrator
@@ -57,11 +56,8 @@ class PipelineRunner:
             return
 
         self.results = await self._process(self.urls)
-
-        logger.separator()
         self._save(self.results)
-        logger.separator()
-        self._handle_metrics(self.results)
+        self._report_metrics(self.results)
 
     # ===== PIPELINE STEPS =====
 
@@ -105,66 +101,24 @@ class PipelineRunner:
         Notes:
             - Uses `ResultManager` to handle multiple save formats.
         """
+        logger.separator()
         saver = ResultManager(
             settings.output_csv_file,
             settings.output_json_file,
             settings.output_error_file,
         )
-        saver.save_all(results)
+        saver.save_all(results, only_csv=True)
 
-    def _handle_metrics(self, results: ScrapeResults) -> None:
+    def _report_metrics(self, results: ScrapeResults) -> None:
         """
-        Calculate, display, and log metrics from scrape results.
-
-        Args:
-            results (ScrapeResults): List of scrape results to analyze.
-
-        Steps:
-            1. Display total metrics for all results.
-            2. Group results by scraping method and display per-method metrics.
-            3. Log status distribution across all results.
-
-        Notes:
-            - Uses `MetricsCalculator` to calculate metrics.
-            - Uses `MetricsAggregator` to group results by method and status.
-        """
-        self._get_and_display_metrics("[TOTAL] METRICS", results)
-
-        grouped = MetricsAggregator.group_by_method(results)
-        for method, group in grouped.items():
-            title = f"[{method.upper()}] METRICS"
-            self._get_and_display_metrics(title, group)
-
-        self._log_status_distribution(results)
-
-    def _get_and_display_metrics(
-        self,
-        title: str,
-        results: ScrapeResults
-    ):
-        """
-        Compute and log metrics for a set of scrape results.
-
-        Args:
-            title (str): Title to display in logs.
-            results (ScrapeResults): List of results to compute metrics for.
-
-        Notes:
-            - Uses `MetricsCalculator` to calculate metrics.
-        """
-        metrics = MetricsCalculator.calculate(results)
-        logger.info(title)
-        logger.info(f"\n{metrics}")
-
-    def _log_status_distribution(self, results: ScrapeResults):
-        """
-        Log the distribution of scrape statuses.
+        Report metrics for the scrape results.
 
         Args:
             results (ScrapeResults): List of scrape results to analyze.
 
         Notes:
-            - Uses `MetricsAggregator` to group results by status.
+            - Uses `MetricsReporter` to handle the metrics reporting process.
         """
-        status_counts = MetricsAggregator.group_by_status(results)
-        logger.info(f"Status distribution: {status_counts}")
+        logger.separator()
+        reporter = MetricsReporter()
+        reporter.report(results)
