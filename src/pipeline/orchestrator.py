@@ -1,17 +1,19 @@
-# src/pipeline/orchestrator.py
+# ./src/pipeline/orchestrator.py
 
-
+from src.services import MetricsAggregator
 from .deps import (
     asyncio,
     List,
     URLUtils,
+    URL,
+    URLs,
     ScrapeResult,
+    ScrapeResults,
     ScrapeStatus,
     HTTPScraper,
     BrowserScraper,
     settings,
-    Logger,
-    MetricsAggregator
+    Logger
 )
 
 logger = Logger("PipelineOrchestrator")
@@ -19,19 +21,19 @@ logger = Logger("PipelineOrchestrator")
 
 class PipelineOrchestrator:
     """
-    Orchestrates the execution of scraping pipelines using HTTP and browser
-    scrapers.
+    Orchestrates concurrent scraping with HTTP and browser fallback.
 
-    This class manages concurrent scraping of URLs, fallback logic from HTTPX
-    to browser-based scraping, and aggregation of results.
+    This class manages the full scraping pipeline:
+        - Executes concurrent HTTP requests using `HTTPScraper`
+        - Applies fallback to `BrowserScraper` for non-success cases
+        - Normalizes results and aggregates metrics
 
-    It uses `HTTPScraper` for fast requests and `BrowserScraper` for pages
-    requiring JS rendering or additional handling.
+    Designed to balance performance (HTTP) and reliability (browser fallback).
 
     Attributes:
-        http_scraper (HTTPScraper): Instance for HTTPX-based scraping.
-        browser_scraper (BrowserScraper): Instance for Playwright-based
-                                          scraping.
+        http_scraper (HTTPScraper): HTTP-based scraper for fast requests.
+        browser_scraper (BrowserScraper): Browser-based scraper for complex
+                                          pages.
     """
 
     def __init__(self):
@@ -40,6 +42,8 @@ class PipelineOrchestrator:
         """
         self.http_scraper = HTTPScraper()
         self.browser_scraper = BrowserScraper()
+
+    # ===== LIFECYCLE =====
 
     async def launch(self):
         """
@@ -59,19 +63,24 @@ class PipelineOrchestrator:
         """
         await self.browser_scraper.close_browser()
 
-    async def process_pipeline(self, urls: List[str]):
-        """
-        Process a list of URLs through the scraping pipeline.
+    # ===== PIPELINE =====
 
-        Executes scraping with concurrency limits, applies fallback logic,
-        and aggregates statistics.
+    async def process_pipeline(self, urls: URLs) -> ScrapeResults:
+        """
+        Execute the full scraping pipeline.
+
+        Handles lifecycle (launch/close), concurrency execution,
+        and summary logging.
 
         Args:
-            urls (List[str]): List of URLs to scrape.
+            urls (URLs): Collection of URLs to scrape.
 
         Returns:
-            List[ScrapeResult]: List of standardized scrape results.
+            ScrapeResults: Normalized list of scraping results.
         """
+        if not urls:
+            return ScrapeResults()
+
         total_urls = len(urls)
         await self.launch()
 
@@ -83,54 +92,56 @@ class PipelineOrchestrator:
 
         try:
             results = await self.run(urls)
-            stats = MetricsAggregator.group_by_status(results)
-
-            logger.info(
-                "Pipeline completed: "
-                f"total={total_urls} "
-                f"success={stats.get(ScrapeStatus.SUCCESS, 0)} "
-                f"failed={stats.get(ScrapeStatus.FAILED, 0)} "
-                f"timeout={stats.get(ScrapeStatus.TIMEOUT, 0)} "
-                f"blocked={stats.get(ScrapeStatus.BLOCKED, 0)} "
-                f"empty={stats.get(ScrapeStatus.EMPTY, 0)} "
-                f"captcha={stats.get(ScrapeStatus.CAPTCHA, 0)}"
-            )
+            self._log_summary(results, total_urls)
             return results
         finally:
             await self.close()
 
-    def _should_use_browser(self, result: ScrapeResult) -> bool:
+    # ===== CORE LOGIC =====
+
+    async def run(self, urls: URLs) -> ScrapeResults:
         """
-        Determine whether a failed HTTPX result should fallback to browser
-        scraping.
+        Run scraping tasks with concurrency control.
+
+        Uses asyncio semaphore to limit concurrent requests and
+        gathers results safely.
 
         Args:
-            result (ScrapeResult): Result from an HTTPX scrape.
+            urls (URLs): Collection of URLs to scrape.
 
         Returns:
-            bool: `True` if the status indicates a fallback is needed,
-                  else `False`.
+            ScrapeResults: Normalized scraping results.
         """
-        return result.status in {
-            ScrapeStatus.FAILED,
-            ScrapeStatus.TIMEOUT,
-            ScrapeStatus.BLOCKED,
-            ScrapeStatus.EMPTY,
-        }
+        concurrency = min(settings.max_concurrency, len(urls))
+        semaphore = asyncio.Semaphore(concurrency)
 
-    async def process_url(self, id: int, url: str) -> ScrapeResult:
+        async def worker(id: int, url: URL) -> ScrapeResult:
+            async with semaphore:
+                return await self.process_url(id, url)
+
+        tasks: List[asyncio.Task[ScrapeResult]] = [
+            asyncio.create_task(worker(idx, url))
+            for idx, url in enumerate(urls, start=1)
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        return self._normalize_results(results)
+
+    async def process_url(self, id: int, url: URL) -> ScrapeResult:
         """
-        Process a single URL through the scraping pipeline.
+        Process a single URL with HTTP + fallback strategy.
 
-        Attempts HTTPX scraping first, then falls back to browser scraping if
-        the initial attempt fails or returns an empty result.
+        Workflow:
+            1. Attempt HTTP scraping
+            2. If result is non-success → fallback to browser
 
         Args:
-            id (int): Unique identifier for the request.
-            url (str): URL to scrape.
+            id (int): Unique identifier of the request.
+            url (URL): Target URL.
 
         Returns:
-            ScrapeResult: Result of the scraping operation.
+            ScrapeResult: Final scraping result.
         """
         short_url = URLUtils.short_url(url)
 
@@ -141,62 +152,47 @@ class PipelineOrchestrator:
         if self._should_use_browser(result):
             logger.info(
                 f"[ID: {id}][FALLBACK_BROWSER] "
-                f"url={short_url} "
-                f"reason={result.status}"
+                f"url={short_url} reason={result.status}"
             )
 
             result = await self.browser_scraper.fetch(id, url)
         return result
 
-    async def run(self, urls: List[str]) -> List[ScrapeResult]:
+    # ===== HELPERS =====
+
+    def _should_use_browser(self, result: ScrapeResult) -> bool:
         """
-        Run the scraping tasks concurrently with a semaphore for throttling.
+        Determine whether browser fallback is required.
 
         Args:
-            urls (List[str]): List of URLs to scrape.
+            result (ScrapeResult): Result from HTTP scraping.
 
         Returns:
-            List[ScrapeResult]: List of results, with exceptions normalized
-                                as failed results.
+            bool: True if fallback should be triggered.
         """
-        concurrency = min(settings.max_concurrency, len(urls))
-        semaphore = asyncio.Semaphore(concurrency)
+        return result.status in ScrapeStatus.non_success_statuses()
 
-        async def worker(id: int, url: str) -> ScrapeResult:
-            async with semaphore:
-                return await self.process_url(id, url)
-
-        tasks: List[asyncio.Task[ScrapeResult]] = [
-            worker(id, url)
-            for id, url in enumerate(urls, start=1)
-        ]
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        return await self._normalize_exceptions(results)
-
-    async def _normalize_exceptions(
-        self, results: List[ScrapeResult]
-    ) -> List[ScrapeResult]:
+    def _normalize_results(
+        self, results: List[ScrapeResult | Exception]
+    ) -> ScrapeResults:
         """
-        Convert exceptions raised during scraping into standardized failed
-        results.
+        Convert exceptions into standardized failed results.
+
+        Ensures that the pipeline always returns valid `ScrapeResult`
+        objects, even when unexpected exceptions occur.
 
         Args:
-            results (List[ScrapeResult]): List containing either ScrapeResult
-                                          or Exception objects.
+            results (List[ScrapeResult | Exception]): Raw results from tasks.
 
         Returns:
-            List[ScrapeResult]: List with all exceptions replaced
-                                by ScrapeResult objects with status FAILED.
+            ScrapeResults: Normalized result collection.
         """
-
-        final_results = []
+        normalized = []
 
         for r in results:
             if isinstance(r, Exception):
-                logger.exception(f"Unhandled exception in result: {r}")
-                final_results.append(
+                logger.exception(f"Unhandled exception: {r}")
+                normalized.append(
                     ScrapeResult(
                         id=getattr(r, "id", 0),
                         url=getattr(r, "url", "unknown"),
@@ -208,5 +204,26 @@ class PipelineOrchestrator:
                     )
                 )
             else:
-                final_results.append(r)
-        return final_results
+                normalized.append(r)
+        return ScrapeResults(normalized)
+
+    def _log_summary(self, results: ScrapeResults, total: int) -> None:
+        """
+        Log aggregated pipeline statistics.
+
+        Args:
+            results (ScrapeResults): Final scraping results.
+            total (int): Total number of processed URLs.
+        """
+        stats = MetricsAggregator.group_by_status(results)
+
+        logger.info(
+            "Pipeline completed: "
+            f"total={total} "
+            f"success={stats.get(ScrapeStatus.SUCCESS, 0)} "
+            f"failed={stats.get(ScrapeStatus.FAILED, 0)} "
+            f"timeout={stats.get(ScrapeStatus.TIMEOUT, 0)} "
+            f"blocked={stats.get(ScrapeStatus.BLOCKED, 0)} "
+            f"empty={stats.get(ScrapeStatus.EMPTY, 0)} "
+            f"captcha={stats.get(ScrapeStatus.CAPTCHA, 0)}"
+        )
