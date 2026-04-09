@@ -1,13 +1,21 @@
 # ./src/scrapers/deps.py
 
 """
-Dependencies for the scrapers module.
+Shared dependencies for the scrapers module.
+
+This module centralizes commonly used imports to:
+    - reduce import duplication
+    - simplify refactoring
+    - provide a single dependency surface
 """
 
-import time
-import httpx
+# ===== STANDARD LIB =====
 import asyncio
+import time
 from typing import Optional, Callable
+
+# ===== THIRD-PARTY =====
+import httpx
 from playwright.async_api import (
     Playwright,
     async_playwright,
@@ -16,24 +24,37 @@ from playwright.async_api import (
     BrowserContext,
     TimeoutError,
 )
+
+# ===== INTERNAL =====
 from src.utils import Logger, URLUtils
-from src.services import detector
+from src.services import detector, URL, URLs
 from src.config.settings import settings
 from src.config.proxy import proxy_manager
-from src.models import ScrapeMethod, ScrapeResult, ScrapeStatus
+from src.models import (
+    ScrapeMethod,
+    ScrapeResult,
+    ScrapeStatus,
+    ScrapeResults,
+)
 
+# ===== EXPLICIT EXPORTS =====
 __all__ = [
-    "time",
-    "httpx",
+    # stdlib
     "asyncio",
+    "time",
     "Optional",
     "Callable",
+
+    # third-party
+    "httpx",
     "Playwright",
     "async_playwright",
     "Browser",
     "Page",
     "BrowserContext",
     "TimeoutError",
+
+    # internal
     "Logger",
     "URLUtils",
     "detector",
@@ -42,4 +63,7 @@ __all__ = [
     "ScrapeMethod",
     "ScrapeResult",
     "ScrapeStatus",
+    "ScrapeResults",
+    "URLs",
+    "URL",
 ]
