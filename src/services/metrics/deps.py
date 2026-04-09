@@ -6,10 +6,18 @@ This module contains the dependencies for the metrics service.
 
 import numpy as np
 from dataclasses import dataclass, asdict
-from typing import List, Dict, Any, Callable, TypeVar, Tuple, ClassVar
 from collections import defaultdict
-from src.utils.logger import Logger
-from src.models import ScrapeResult, ScrapeMethod, ScrapeStatus, ScrapeResults
+from typing import List, Dict, Any, Callable, TypeVar, Tuple, ClassVar
+from src.utils import Logger
+from src.models import (
+    ScrapeResult,
+    ScrapeMethod,
+    ScrapeStatus,
+    ScrapeResults,
+    Counts,
+    Grouped,
+    K,
+)
 
 __all__ = [
     "np",
@@ -28,4 +36,7 @@ __all__ = [
     "ScrapeMethod",
     "ScrapeStatus",
     "ScrapeResults",
+    "Counts",
+    "Grouped",
+    "K",
 ]
