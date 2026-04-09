@@ -22,12 +22,13 @@ class ResultBuilder:
     Helper class to construct structured ScrapeResult objects for a scraper.
 
     Tracks latency, computes content length, logs results, and provides
-    convenient builders for various statuses (success, failure, timeout, 
+    convenient builders for various statuses (success, failure, timeout,
     CAPTCHA, blocked, empty, PDF, etc.).
 
     Attributes:
         method (ScrapeMethod): Scraping method used (HTTPX, PLAYWRIGHT, etc.)
-        _start (float): Timestamp when scraping started, used for latency calculation.
+        _start (float): Timestamp when scraping started, used for
+                        latency calculation.
     """
 
     def __init__(self, method: ScrapeMethod):
@@ -114,7 +115,8 @@ class ResultBuilder:
             id (int): Request identifier.
             url (URL): Target URL.
             error (str): Error message describing the failure.
-            status (ScrapeStatus, optional): Failure status. Defaults to FAILED.
+            status (ScrapeStatus, optional): Failure status.
+                                             Defaults to FAILED.
 
         Returns:
             ScrapeResult: Failure result with error and metadata.
