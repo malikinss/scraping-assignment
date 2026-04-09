@@ -1,6 +1,5 @@
 # ./src/services/metrics/reporter.py
 
-from .aggregator import MetricsAggregator
 from .calculator import MetricsCalculator
 from .deps import Logger, ScrapeResults
 
@@ -9,12 +8,10 @@ logger = Logger("MetricsReporter")
 
 class MetricsReporter:
     """
-    Service class responsible for calculating and displaying metrics.
+    Reports metrics for a collection of scrape results.
 
-    Provides aggregated metrics for:
-        - All results
-        - Results grouped by scraping method
-        - Status distribution
+    Uses MetricsCalculator to compute metrics and logs them
+    in a structured format.
     """
 
     def report(self, results: ScrapeResults) -> None:
@@ -22,9 +19,9 @@ class MetricsReporter:
         Entry point for metrics reporting.
 
         Args:
-            results (ScrapeResults): List of scraping results
+            results (ScrapeResults): Collection of scrape results.
         """
-        if not results:
+        if not results or len(results) == 0:
             logger.warning("No results provided for metrics reporting.")
             return
 
@@ -35,30 +32,41 @@ class MetricsReporter:
     # ===== INTERNAL METHODS =====
 
     def _report_total(self, results: ScrapeResults) -> None:
-        """Log total aggregated metrics."""
+        """Log overall metrics for all results."""
         self._log_metrics("[TOTAL] METRICS", results)
 
     def _report_by_method(self, results: ScrapeResults) -> None:
-        """Log metrics grouped by scraping method."""
-        grouped = MetricsAggregator.group_by_method(results)
+        """
+        Log metrics grouped by scraping method.
+        """
+        grouped = results.group_by_method()
+        if not grouped:
+            logger.info("No methods found for metrics reporting.")
+            return
 
         for method, group in grouped.items():
             title = f"[{method.upper()}] METRICS"
             self._log_metrics(title, group)
 
     def _report_status_distribution(self, results: ScrapeResults) -> None:
-        """Log distribution of scraping statuses."""
-        status_counts = MetricsAggregator.group_by_status(results)
+        """
+        Log the count of results per ScrapeStatus.
+        """
+        status_counts = results.count_by_status()
         logger.info(f"Status distribution: {status_counts}")
 
     def _log_metrics(self, title: str, results: ScrapeResults) -> None:
         """
-        Calculate and log metrics for a given subset of results.
+        Compute metrics and log them under a given title.
 
         Args:
-            title (str): Section title for logging
-            results (ScrapeResults): Results subset
+            title (str): Header for log output.
+            results (ScrapeResults): Collection of results to compute metrics
+                                     on.
         """
-        metrics = MetricsCalculator.calculate(results)
-        logger.info(title)
-        logger.info(str(metrics))
+        try:
+            metrics = MetricsCalculator.calculate(results)
+            logger.info(title)
+            logger.info(str(metrics))
+        except Exception as e:
+            logger.exception(f"Failed to calculate metrics for {title}: {e}")
