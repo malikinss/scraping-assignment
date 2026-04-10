@@ -1,116 +1,73 @@
 # ./src/services/result_manager/result_manager.py
 
-from .deps import Dict, Callable, List, Logger, ScrapeResult
-from .savers import CSVResultSaver, ErrorLogger, JSONResultSaver
+from .deps import Dict, Logger, ScrapeResults
+from .savers import CSVResultSaver
 
 logger = Logger("ResultManager")
+
+Statuses = Dict[str, bool]
 
 
 class ResultManager:
     """
-    Coordinator for saving scrape results using multiple saver strategies.
+    High-level service for managing and coordinating result persistence.
 
-    This class aggregates different saver implementations (CSV, JSON,
-    error log) and ensures that results are persisted across all formats.
+    The ResultManager acts as an orchestrator for multiple saver strategies
+    (e.g., CSV, JSON, logs). It allows registering different savers and
+    executing them in a unified way while collecting execution statuses.
 
-    Each save operation is executed safely to prevent one failure from
-    affecting others.
+    Attributes:
+        savers (Dict[str, Any]): Registered saver implementations indexed
+                                 by name.
     """
 
-    def __init__(self, csv_path: str, json_path: str, error_log_path: str):
+    def __init__(self, file_path: str):
         """
-        Initialize the result manager with saver configurations.
+        Initialize ResultManager with a default CSV saver.
 
         Args:
-            csv_path (str): Path to the CSV file for storing results.
-            json_path (str): Path to the JSON file for storing results.
-            error_log_path (str): Path to the file for logging failed results.
-
-        Raises:
-            None: Exceptions are caught and logged internally.
-
-        Returns:
-            None: Returns nothing.
-
-        Examples:
-            >>> result_manager = ResultManager(
-            ...     csv_path="results.csv",
-            ...     json_path="results.json",
-            ...     error_log_path="errors.log"
-            ... )
-            >>> result_manager.save_all([
-            ...     ScrapeResult(
-            ...         id="1",
-            ...         url="https://example.com",
-            ...         title="Example Domain",
-            ...         status="success",
-            ...         content="<p>Example Domain</p>",
-            ...         timestamp="2022-01-01T00:00:00Z"
-            ...     )
-            ... ])
+            file_path (str): Base file path used for default CSV saver.
         """
-        self.savers: Dict[str, Callable[[List[ScrapeResult]], None]] = {
-            "csv": CSVResultSaver(csv_path).save,
-            "json": JSONResultSaver(json_path).save,
-            "error_log": ErrorLogger(error_log_path).save,
+        self.savers = {
+            "csv": CSVResultSaver(file_path),
         }
 
-    def save_all(
-        self,
-        results: List[ScrapeResult],
-        only_csv: bool = False
-    ) -> Dict[str, bool]:
+    def register_saver(self, name: str, saver) -> None:
         """
-        Save results using all configured saver implementations.
+        Register a new saver implementation.
 
-        If only_csv is True, only save to CSV file.
-
-        Each saver is executed independently. Failures in one saver do not
-        interrupt the execution of others.
+        Allows extending output formats dynamically at runtime.
 
         Args:
-            results (List[ScrapeResult]): A list of `ScrapeResult` instances
-                                          to be saved.
-            only_csv (bool): If True, only save to CSV file.
+            name (str): Unique identifier for the saver.
+            saver (Any): Saver instance implementing `save(results)` method.
+        """
+        self.savers[name] = saver
 
-        Raises:
-            None: Exceptions are caught and logged internally.
+    def save_all(self, results: ScrapeResults) -> Statuses:
+        """
+        Execute all registered savers on the provided results.
+
+        Each saver is executed safely, and failures do not interrupt
+        other saver executions. Returns a status map indicating success
+        or failure per saver.
+
+        Args:
+            results (ScrapeResults): Collection of scrape results.
 
         Returns:
-            Dict[str, bool]: A dictionary mapping saver names to boolean
-                             success indicators.
-
-        Examples:
-            >>> result_manager = ResultManager(
-            ...     csv_path="results.csv",
-            ...     json_path="results.json",
-            ...     error_log_path="errors.log"
-            ... )
-            >>> statuses = result_manager.save_all([
-            ...     ScrapeResult(
-            ...         id="1",
-            ...         url="https://example.com",
-            ...         title="Example Domain",
-            ...         status="success",
-            ...         content="<p>Example Domain</p>",
-            ...         timestamp="2022-01-01T00:00:00Z"
-            ...     )
-            ... ])
-            >>> statuses
-            {'csv': True, 'json': True, 'error_log': True}
+            Statuses: Dictionary mapping saver name to success status.
         """
         if not results:
             logger.debug("Save skipped: no results")
             return {}
 
-        statuses: Dict[str, bool] = {}
+        statuses: Statuses = {
+            name: self._safe_save(name, saver, results)
+            for name, saver in self.savers.items()
+        }
 
-        for name, save_func in self.savers.items():
-            if only_csv and name != "csv":
-                continue
-            statuses[name] = self._safe_save(name, save_func, results)
-
-        success_count: int = sum(statuses.values())
+        success_count = sum(statuses.values())
 
         logger.info(
             f"Save completed: "
@@ -120,54 +77,21 @@ class ResultManager:
 
         return statuses
 
-    def _safe_save(
-        self,
-        name: str,
-        save_func,
-        results: List[ScrapeResult]
-    ) -> bool:
+    def _safe_save(self, name: str, saver, results: ScrapeResults) -> bool:
         """
-        Executes a save operation safely with logging.
+        Safely execute a saver and capture failures.
 
         Args:
-            name (str): Human-readable name of the saver (for logging).
-            save_func (Callable[[List[ScrapeResult]], None]): The save
-                                                              function to
-                                                              execute.
-            results (List[ScrapeResult]): The results to pass to the saver.
-
-        Raises:
-            None: Exceptions are caught and logged internally.
+            name (str): Saver identifier.
+            saver (Any): Saver instance.
+            results (ScrapeResults): Data to persist.
 
         Returns:
-            bool: True if the save operation was successful, False otherwise.
-
-        Examples:
-            >>> result_manager = ResultManager(
-            ...     csv_path="results.csv",
-            ...     json_path="results.json",
-            ...     error_log_path="errors.log"
-            ... )
-            >>> result_manager._safe_save(
-            ...     "CSV",
-            ...     result_manager.csv_saver.save,
-            ...     [
-            ...         ScrapeResult(
-            ...             id="1",
-            ...             url="https://example.com",
-            ...             title="Example Domain",
-            ...             status="success",
-            ...             content="<p>Example Domain</p>",
-            ...             timestamp="2022-01-01T00:00:00Z"
-            ...         )
-            ...     ]
-            ... )
+            bool: True if save succeeded, False otherwise.
         """
         try:
-            save_func(results)
+            saver.save(results)
             return True
         except Exception as e:
-            logger.error(
-                f"Save failed: target={name} error={e}"
-            )
+            logger.error(f"Save failed: target={name} error={e}")
             return False
