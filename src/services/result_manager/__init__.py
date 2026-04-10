@@ -1,21 +1,13 @@
 # ./src/services/result_manager/__init__.py
 
 """
-Result management module for persisting scrape results.
+Result Manager service package.
 
-This module provides the `ResultManager` class, which coordinates
-saving `ScrapeResult` data across multiple formats including CSV, JSON,
-and error logs.
+This package provides a high-level interface for managing and persisting
+scraping results through different output strategies (CSV, JSON, error logs).
 
-Example:
-    from .result_manager import ResultManager
-
-    manager = ResultManager(
-        csv_path="results.csv",
-        json_path="results.json",
-        error_log_path="errors.log"
-    )
-    manager.save_all(results)
+The main entry point is `ResultManager`, which orchestrates multiple
+savers and coordinates saving results in different formats.
 """
 
 from .result_manager import ResultManager
