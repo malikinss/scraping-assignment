@@ -1,82 +1,47 @@
 # ./src/services/result_manager/savers/json_saver.py
 
 from .base import BaseSaver
-from .deps import (
-    json,
-    Any,
-    List,
-    Path,
-    Logger,
-    ScrapeResult,
-)
-
+from .deps import json, Path, Logger, ScrapeResults
 
 logger = Logger("JSONSaver")
 
 
 class JSONResultSaver(BaseSaver):
     """
-    Saver implementation for exporting scrape results to a JSON file.
+    Saver implementation for writing scrape results to a JSON file.
 
-    This class serializes `ScrapeResult` objects into JSON format and writes
-    them to a file. It supports both pretty-printed and compact output.
+    Serializes `ScrapeResults` into JSON format. Supports both compact
+    and pretty-printed output for readability.
+
+    Attributes:
+        file_path (Path): Path to the JSON file.
+        pretty (bool): Whether to format JSON with indentation.
     """
 
     def __init__(self, file_path: str, pretty: bool = True):
         """
-        Initialize the JSON result saver.
+        Initialize the JSON saver.
 
         Args:
-            file_path (str): Path to the JSON file where results will be saved.
-            pretty (bool, optional): If True, the JSON output will be formatted
-                                     with indentation for readability.
-                                     If False, a compact JSON representation
-                                     will be used.
-                                     Defaults to True.
-
-        Example:
-            >>> saver = JSONResultSaver("results.json")
-            >>> saver.save([
-            ...     ScrapeResult(
-            ...         "url",
-            ...         "method",
-            ...         "status",
-            ...         "latency",
-            ...         "content_length",
-            ...         "error"
-            ...     ),
-            ... ])
+            file_path (str): Path to the JSON file.
+            pretty (bool, optional): If True, formats JSON with indentation
+                for readability. Defaults to True.
         """
         self.file_path: Path = Path(file_path)
         self.pretty: bool = pretty
 
-    def save(self, results: List[ScrapeResult]) -> None:
+    def save(self, results: ScrapeResults) -> None:
         """
         Save scrape results to a JSON file.
 
-        Converts each `ScrapeResult` instance to a dictionary and writes
-        the resulting list to a JSON file. If no results are provided,
-        the method logs the event and exits early.
+        Skips execution if results are empty. Uses BaseSaver's `write_file`
+        utility to ensure safe file operations.
 
         Args:
-            results (List[ScrapeResult]): A list of `ScrapeResult` instances
-                to be serialized and saved.
+            results (ScrapeResults): Collection of scrape results.
 
         Raises:
-            Exception: Propagates any exception raised during file writing.
-
-        Example:
-            >>> saver = JSONResultSaver("results.json")
-            >>> saver.save([
-            ...     ScrapeResult(
-            ...         "url",
-            ...         "method",
-            ...         "status",
-            ...         "latency",
-            ...         "content_length",
-            ...         "error"
-            ...     ),
-            ... ])
+            Exception: Propagates exceptions raised during file writing.
         """
         if not results:
             logger.debug(
@@ -85,37 +50,22 @@ class JSONResultSaver(BaseSaver):
             return
 
         count = len(results)
-        data = [self._safe_to_dict(r) for r in results]
+        data = results.to_list()
         indent = 4 if self.pretty else None
 
         def writer(f):
             """
-            Write JSON data to an open file handle.
+            Write JSON data to file.
 
             Args:
-                f (IO[Any]): A file-like object opened for writing.
+                f (IO[Any]): File-like object opened for writing.
             """
             json.dump(data, f, ensure_ascii=False, indent=indent)
 
         self.write_file(self.file_path, writer, description="JSON file")
+
         logger.info(
             f"JSON saved: path={self.file_path} "
             f"count={count} "
             f"pretty={self.pretty}"
         )
-
-    @staticmethod
-    def _safe_to_dict(result: ScrapeResult) -> dict[str, Any]:
-        """
-        Safely convert ScrapeResult to dictionary.
-
-        Ensures the result is JSON-serializable.
-        """
-        try:
-            return result.to_dict()
-        except Exception as e:
-            return {
-                "error": "serialization_failed",
-                "reason": str(e),
-                "raw": str(result),
-            }
