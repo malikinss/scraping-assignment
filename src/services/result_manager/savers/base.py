@@ -5,10 +5,9 @@ from .deps import (
     Logger,
     ABC,
     abstractmethod,
-    ScrapeResult,
-    List,
     Callable,
     Any,
+    ScrapeResults
 )
 
 logger = Logger("BaseSaver")
@@ -16,27 +15,25 @@ logger = Logger("BaseSaver")
 
 class BaseSaver(ABC):
     """
-    Abstract base class for saving scraped results.
+    Abstract base class for result persistence strategies.
 
-    Subclasses must implement the `save` method to define how
-    `ScrapeResult` objects are persisted.
+    Defines the interface for saving `ScrapeResults` and provides a shared
+    utility method for safe file writing.
+
+    Subclasses should implement the `save` method to define how results
+    are serialized and stored (e.g., CSV, JSON, database).
     """
+
     @abstractmethod
-    def save(self, results: List[ScrapeResult]) -> None:
+    def save(self, results: ScrapeResults) -> None:
         """
-        Save a list of scrape results.
+        Persist scrape results.
 
         Args:
-            results (List[ScrapeResult]): A list of `ScrapeResult` instances
-                                          to be saved.
+            results (ScrapeResults): Collection of scrape results to save.
 
         Raises:
-            NotImplementedError: Must be implemented in subclasses.
-
-        Example:
-            >>> saver = BaseSaver()
-            >>> saver.save([ScrapeResult("url", "content", "status")])
-            NotImplementedError: Must be implemented in subclasses.
+            NotImplementedError: Must be implemented by subclasses.
         """
         raise NotImplementedError(
             "Subclasses must implement the `save` method."
@@ -50,33 +47,22 @@ class BaseSaver(ABC):
         description: str = "file",
     ) -> None:
         """
-        Write content to a file using a provided writing function.
+        Write data to a file using a provided writer function.
 
-        This method handles opening the file, calling the provided
-        `write_func` to write content, and logging success or failure.
+        Handles file opening and ensures consistent error logging.
+        The actual writing logic is delegated to `write_func`.
 
         Args:
-            file_path (Path): The path to the file where content will
-                              be written.
-            write_func (Callable[[Any], None]): A function that takes
-                                                a file-like object and
-                                                writes the desired content
-                                                to it.
-            mode (str, optional): File opening mode. Defaults to "w".
-            description (str, optional): A human-readable description of
-                                         the file for logging purposes.
-                                         Defaults to "file".
+            file_path (Path): Path to the target file.
+            write_func (Callable[[Any], None]): Function that receives
+                a file-like object and writes data to it.
+            mode (str, optional): File open mode (e.g., "w", "a").
+                Defaults to "w".
+            description (str, optional): Human-readable description of
+                the file (used in logging). Defaults to "file".
 
         Raises:
-            Exception: Propagates any exception raised during file writing.
-
-        Example:
-            >>> BaseSaver.write_file(
-            ...     Path("test.txt"),
-            ...     lambda f: f.write("test"),
-            ... )
-            Saving file: test.txt
-            file saved successfully to test.txt
+            Exception: Re-raises any exception encountered during writing.
         """
         try:
             with file_path.open(mode, encoding="utf-8") as f:
