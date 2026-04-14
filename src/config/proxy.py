@@ -1,23 +1,34 @@
-# src/config/proxy.py
+# ./src/config/proxy.py
 
-from .settings import settings
-from .deps import json, Path, dataclass, Logger
+"""
+Proxy configuration and management module.
 
-logger: Logger = Logger("Proxy")
+This module provides:
+    - Data model for proxy credentials
+    - Proxy configuration loader from file
+    - Format converters for different clients (httpx, playwright)
+
+It supports parsing proxy settings from JSON files and exposing them
+in formats compatible with different HTTP clients.
+"""
+
+from .deps import json, Path, dataclass, AppLogger
+
+logger: AppLogger = AppLogger("Proxy")
 
 
 @dataclass
 class ProxyCredentials:
     """
-    Data class representing proxy authentication and connection details.
+    Data structure representing proxy authentication credentials.
 
     Attributes:
-        username (str): Username for proxy authentication.
-        password (str): Password for proxy authentication.
-        hostname (str): Proxy server hostname or IP address.
-        http_port (int): Port for HTTP connections.
-        https_port (int): Port for HTTPS connections.
-        socks5_port (int): Port for SOCKS5 connections.
+        username (str): Proxy username.
+        password (str): Proxy password.
+        hostname (str): Proxy host address (without port).
+        http_port (int): HTTP proxy port.
+        https_port (int): HTTPS proxy port.
+        socks5_port (int): SOCKS5 proxy port.
     """
     username: str
     password: str
@@ -29,67 +40,47 @@ class ProxyCredentials:
 
 class ProxyManager:
     """
-    Manager for loading and providing proxy configurations.
+    Manages proxy configuration and provides client-specific formats.
 
-    This class is responsible for:
-        - Loading proxy credentials from a JSON file.
-        - Validating proxy configuration structure.
-        - Providing formatted proxy settings for different clients
-          (e.g., httpx, Playwright).
+    Responsible for:
+        - Loading proxy configuration from JSON file
+        - Parsing and validating proxy credentials
+        - Providing proxy configs for HTTPX and Playwright
 
-    Raises:
-        FileNotFoundError: If the proxy file does not exist.
-        ValueError: If the proxy file format is invalid.
-        Exception: For any unexpected loading/parsing errors.
+    Attributes:
+        credentials (ProxyCredentials): Proxy authentication credentials.
     """
 
-    def __init__(self):
+    def __init__(self, credentials: ProxyCredentials):
         """
-        Initialize the ProxyManager and load proxy credentials.
+        Initialize ProxyManager with proxy credentials.
 
-        Raises:
-            Exception: If proxy credentials cannot be loaded.
-        Example:
-            >>> proxy_manager = ProxyManager()
-            >>> proxy_manager.get_httpx_proxy()
-            {
-                "http://": "http://username:password@hostname:http_port",
-                "https://": "http://username:password@hostname:https_port",
-            }
+        Args:
+            credentials (ProxyCredentials): Proxy authentication credentials.
         """
-        try:
-            self.credentials: ProxyCredentials = self._load()
-        except Exception as e:
-            logger.error(f"Failed to initialize proxy manager: {e}")
-            raise
+        self.credentials = credentials
 
-    def _load(self) -> ProxyCredentials:
+    # ===== FACTORY =====
+
+    @classmethod
+    def from_file(cls, path: Path) -> "ProxyManager":
         """
-        Load proxy credentials from a JSON file.
+        Create ProxyManager instance from JSON configuration file.
+
+        The file must contain a "proxy" key with required credentials.
+
+        Args:
+            path (Path): Path to the JSON configuration file.
 
         Returns:
-            ProxyCredentials: Parsed and validated proxy credentials.
+            ProxyManager: Initialized ProxyManager instance.
 
         Raises:
-            FileNotFoundError: If the proxy file does not exist.
-            ValueError: If required keys are missing or format is invalid.
-            KeyError: If expected fields are missing in the JSON.
-        Example:
-            >>> proxy_manager = ProxyManager()
-            >>> proxy_manager._load()
-            ProxyCredentials(
-                username='username',
-                password='password',
-                hostname='hostname',
-                http_port=http_port,
-                https_port=https_port,
-                socks5_port=socks5_port,
-            )
+            FileNotFoundError: If the configuration file does not exist.
+            ValueError: If the configuration file is invalid or missing
+                        required fields.
+            Exception: For other unexpected errors during loading.
         """
-        path: Path = Path(settings.proxy_file)
-
-        if not path.exists():
-            raise FileNotFoundError(f"Proxy file not found: {path}")
         try:
             with path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -98,79 +89,69 @@ class ProxyManager:
             if not proxy:
                 raise ValueError("Missing 'proxy' key in config")
 
-            return self._parse_proxy(proxy)
+            credentials = cls._parse_proxy(proxy)
+            logger.pipeline.proxy_success(credentials.hostname)
+            return cls(credentials)
 
-        except KeyError as e:
-            raise ValueError(f"Missing required proxy field: {e}") from e
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON format in proxy file: {e}") from e
+        except Exception as e:
+            logger.pipeline.proxy_fail(e)
+            raise
 
-    def _parse_proxy(self, proxy: dict) -> ProxyCredentials:
+    # ===== INTERNAL =====
+
+    @staticmethod
+    def _parse_proxy(proxy: dict) -> ProxyCredentials:
         """
-        Parse and validate proxy credentials.
+        Parse raw proxy dictionary into ProxyCredentials.
 
         Args:
-            proxy (dict): Proxy configuration dictionary.
+            proxy (dict): Raw proxy configuration.
 
         Returns:
-            ProxyCredentials: Parsed and validated proxy credentials.
+            ProxyCredentials: Structured proxy credentials.
 
         Raises:
-            ValueError: If required keys are missing or format is invalid.
-            KeyError: If expected fields are missing in the JSON.
-        Example:
-            >>> proxy_manager = ProxyManager()
-            >>> proxy_manager._parse_proxy(proxy_manager._load())
-            ProxyCredentials(
-                username='username',
-                password='password',
-                hostname='hostname',
-                http_port=http_port,
-                https_port=https_port,
-                socks5_port=socks5_port,
-            )
+            ValueError: If required keys are missing.
         """
-        hostname: str = proxy["hostname"].split(":")[0]
-        logger.info(f"Loaded proxy for hostname={hostname}")
-        return ProxyCredentials(
-            username=proxy["username"],
-            password=proxy["password"],
-            hostname=hostname,
-            http_port=proxy["port"]["http"],
-            https_port=proxy["port"]["https"],
-            socks5_port=proxy["port"]["socks5"],
-        )
+        try:
+            hostname = proxy["hostname"].split(":")[0]
+
+            return ProxyCredentials(
+                username=proxy["username"],
+                password=proxy["password"],
+                hostname=hostname,
+                http_port=proxy["port"]["http"],
+                https_port=proxy["port"]["https"],
+                socks5_port=proxy["port"]["socks5"],
+            )
+        except KeyError as e:
+            raise ValueError(f"Invalid proxy config: missing {e}") from e
 
     def _build_base_url(self) -> str:
         """
-        Build the base proxy URL with authentication credentials.
+        Build base proxy URL from credentials.
 
         Returns:
-            str: Proxy URL in the format:
-                "http://username:password@hostname"
-        Example:
-            >>> proxy_manager = ProxyManager()
-            >>> proxy_manager._build_base_url()
+            str: Base proxy URL in format: http://username:password@hostname
         """
         c = self.credentials
         return f"http://{c.username}:{c.password}@{c.hostname}"
 
+    # ===== PUBLIC API =====
+
     def get_httpx_proxy(self) -> dict:
         """
-        Get HTTPX proxy configuration.
+        Return proxy configuration compatible with HTTPX.
 
         Returns:
-            dict: HTTPX proxy configuration in the format:
+            dict: HTTPX proxy configuration in format:
                 {
                     "http://": "http://username:password@hostname:http_port",
-                    "https://": "http://username:password@hostname:https_port",
+                    "https://": "http://username:password@hostname:https_port"
                 }
-        Example:
-            >>> proxy_manager = ProxyManager()
-            >>> proxy_manager.get_httpx_proxy()
         """
-        base = self._build_base_url()
         c = self.credentials
+        base = self._build_base_url()
         return {
             "http://": f"{base}:{c.http_port}",
             "https://": f"{base}:{c.https_port}",
@@ -178,18 +159,15 @@ class ProxyManager:
 
     def get_playwright_proxy(self) -> dict:
         """
-        Get Playwright proxy configuration.
+        Return proxy configuration compatible with Playwright.
 
         Returns:
-            dict: Playwright proxy configuration in the format:
+            dict: Playwright proxy configuration in format:
                 {
-                    "server": "http://hostname:http_port",
-                    "username": "...",
-                    "password": "...",
+                    "server": "http://username:password@hostname:http_port",
+                    "username": "username",
+                    "password": "password"
                 }
-        Example:
-            >>> proxy_manager = ProxyManager()
-            >>> proxy_manager.get_playwright_proxy()
         """
         c = self.credentials
         return {
@@ -197,6 +175,3 @@ class ProxyManager:
             "username": c.username,
             "password": c.password,
         }
-
-
-proxy_manager = ProxyManager()
