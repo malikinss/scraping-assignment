@@ -1,30 +1,25 @@
 # ./src/config/__init__.py
 
 """
-Configuration package for the scraping assignment.
+Application configuration module.
 
-This package provides:
-    - settings: Global application settings.
-    - proxy: Proxy configuration and management.
+This module initializes and exposes global configuration objects used
+across the application, including runtime settings and proxy management.
 
-Exports:
-    - settings: Global settings instance.
-    - ProxyManager: For managing proxy configurations.
-    - ProxyCredentials: For holding proxy credentials.
-
-Usage:
-    from src.config import settings, ProxyManager, ProxyCredentials
-
-    settings.load()
-    proxy_manager = ProxyManager()
-    proxy_creds = ProxyCredentials(...)
+It acts as a central entry point for configuration loading:
+    - Loads environment-based settings
+    - Initializes proxy manager from configuration file
+    - Provides ready-to-use singleton-like objects
 """
 
-from .settings import settings
-from .proxy import ProxyManager, ProxyCredentials
+from .deps import Path
+from .settings import Settings
+from .proxy import ProxyManager
 
-__all__ = [
-    "settings",
-    "ProxyManager",
-    "ProxyCredentials",
-]
+settings = Settings.from_env()
+"""Global application settings loaded from environment variables."""
+
+proxy_manager = ProxyManager.from_file(Path(settings.proxy_file))
+"""Global proxy manager initialized from configured proxy file."""
+
+__all__ = ["settings", "proxy_manager"]
