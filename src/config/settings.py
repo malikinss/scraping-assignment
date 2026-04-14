@@ -1,52 +1,64 @@
 # ./src/config/settings.py
 
-from .deps import (
-    os,
-    load_dotenv,
-    dataclass,
-    Logger,
-)
+"""
+Application settings and environment configuration.
 
-logger = Logger("Settings")
+This module defines the `Settings` dataclass responsible for:
+    - Loading configuration from environment variables
+    - Providing default fallback values
+    - Validating configuration integrity
+    - Logging initialized settings
+
+It serves as the central configuration layer of the application.
+"""
+
+from .deps import os, load_dotenv, dataclass, AppLogger
+
+logger = AppLogger("Settings")
 load_dotenv()
 
 
 def _get_env(key: str, default, cast):
     """
-    Safely get and cast environment variable.
+    Retrieve and cast environment variable with fallback.
+
+    Supports type casting and safe defaults. Special handling is included
+    for boolean values.
+
+    Args:
+        key (str): Environment variable name.
+        default (Any): Default value if env variable is missing.
+        cast (type): Type to cast the value into.
+
+    Returns:
+        Any: Parsed and cast environment value or default.
+
+    Raises:
+        ValueError: If casting fails for invalid environment value.
     """
+    value = os.getenv(key)
+    if value is None:
+        return default
     try:
-        return cast(os.getenv(key, default))
+        if cast is bool:
+            return value.lower() in ("1", "true", "yes")
+        return cast(value)
     except (TypeError, ValueError):
-        raise ValueError(f"Invalid value for env '{key}'")
+        raise ValueError(f"Invalid value for env '{key}': {value}")
 
 
 @dataclass
 class Settings:
     """
-    Application configuration loaded from environment variables.
+    Application settings and environment configuration.
 
-    Attributes:
-        http_timeout (`float`): Timeout for HTTP requests in seconds.
-                              Defaults to 10.0.
-        browser_timeout (`float`): Timeout for browser-based scraping in
-                                 milliseconds. Defaults to 10000.0.
-        retries (`int`): Number of retry attempts for failed requests.
-                       Defaults to 2.
-        user_agent (`str`): User-Agent string to be used for HTTP and browser
-                          requests.
-        max_concurrency (`int`): Maximum number of concurrent requests.
-                               Defaults to 5.
-        proxy_file (`str`): Path to JSON file containing proxy configurations.
-        urls_file (`str`): Path to CSV file containing URLs to scrape.
-        output_csv_file (`str`): Path to the CSV file where results will be
-                               saved.
-        output_json_file (`str`): Path to the JSON file where results will be
-                                saved.
-        output_error_file (`str`): Path to the file where errors will be
-                                   logged.
-        protocol (`str`): Default protocol to use for requests (e.g.,
-                        "https://").
+    This module defines the `Settings` dataclass responsible for:
+        - Loading configuration from environment variables
+        - Providing default fallback values
+        - Validating configuration integrity
+        - Logging initialized settings
+
+    It serves as the central configuration layer of the application.
     """
     http_timeout: float = 10.0
     browser_timeout: float = 10000.0
@@ -63,47 +75,66 @@ class Settings:
     output_error_file: str = "data/results.error"
     protocol: str = "https://"
 
-    def __post_init__(self):
+    # ===== FACTORY =====
+
+    @classmethod
+    def from_env(cls) -> "Settings":
         """
-        Post-initialization hook to load environment variables.
+        Create Settings instance from environment variables.
 
-        This method is called after the object is initialized and is used to
-        load environment variables into the settings object.
+        Loads configuration from environment variables with fallback to
+        default values. Validates the loaded configuration and logs the
+        initialized settings.
 
-        Example:
-            >>> settings = Settings()
-            >>> settings.http_timeout
-            10.0
-        """
-        self.http_timeout = _get_env("HTTP_TIMEOUT", self.http_timeout, float)
-        self.browser_timeout = _get_env(
-            "BROWSER_TIMEOUT", self.browser_timeout, float)
-        self.retries = _get_env("RETRIES", self.retries, int)
-        self.user_agent = _get_env(
-            "USER_AGENT", self.user_agent, str)
-        self.max_concurrency = _get_env(
-            "MAX_CONCURRENCY", self.max_concurrency, int)
-        self.proxy_file = _get_env("PROXY_FILE", self.proxy_file, str)
-        self.urls_file = _get_env("URLS_FILE", self.urls_file, str)
-        self.output_csv_file = _get_env(
-            "OUTPUT_CSV_FILE", self.output_csv_file, str)
-        self.output_json_file = _get_env(
-            "OUTPUT_JSON_FILE", self.output_json_file, str)
-        self.output_error_file = _get_env(
-            "OUTPUT_ERROR_FILE", self.output_error_file, str)
-        self.protocol = _get_env("PROTOCOL", self.protocol, str)
-
-        self._validate()
-
-    def _validate(self):
-        """
-        Validate the settings object.
+        Returns:
+            Settings: Initialized Settings instance.
 
         Raises:
-            ValueError: If any of the settings are invalid.
-        Example:
-            >>> settings = Settings()
-            >>> settings._validate()
+            ValueError: If any environment variable has an invalid value.
+        """
+        instance = cls(
+            http_timeout=_get_env("HTTP_TIMEOUT", cls.http_timeout, float),
+            browser_timeout=_get_env(
+                "BROWSER_TIMEOUT", cls.browser_timeout, float),
+            retries=_get_env("RETRIES", cls.retries, int),
+            user_agent=_get_env("USER_AGENT", cls.user_agent, str),
+            max_concurrency=_get_env(
+                "MAX_CONCURRENCY", cls.max_concurrency, int
+            ),
+            proxy_file=_get_env("PROXY_FILE", cls.proxy_file, str),
+            urls_file=_get_env("URLS_FILE", cls.urls_file, str),
+            output_csv_file=_get_env(
+                "OUTPUT_CSV_FILE", cls.output_csv_file, str
+            ),
+            output_json_file=_get_env(
+                "OUTPUT_JSON_FILE", cls.output_json_file, str
+            ),
+            output_error_file=_get_env(
+                "OUTPUT_ERROR_FILE", cls.output_error_file, str
+            ),
+            protocol=_get_env("PROTOCOL", cls.protocol, str),
+        )
+
+        instance._validate()
+        instance._log()
+
+        return instance
+
+    # ===== INTERNAL =====
+
+    def _validate(self) -> None:
+        """
+        Validate the integrity of the loaded settings.
+
+        Performs the following checks:
+            - All timeout values must be positive
+            - Retries must be non-negative
+            - Max concurrency must be positive
+            - User agent must not be empty
+            - Protocol must start with http:// or https://
+
+        Raises:
+            ValueError: If any validation check fails.
         """
         if self.http_timeout <= 0:
             raise ValueError("HTTP timeout must be positive")
@@ -115,28 +146,24 @@ class Settings:
             raise ValueError("Max concurrency must be positive")
         if not self.user_agent:
             raise ValueError("User agent cannot be empty")
-        if not self.proxy_file:
-            raise ValueError("Proxy file cannot be empty")
-        if not self.urls_file:
-            raise ValueError("URLs file cannot be empty")
-        if not self.output_csv_file:
-            raise ValueError("Output CSV file cannot be empty")
-        if not self.output_json_file:
-            raise ValueError("Output JSON file cannot be empty")
-        if not self.output_error_file:
-            raise ValueError("Output error file cannot be empty")
         if not self.protocol.startswith(("http://", "https://")):
             raise ValueError("Protocol must start with http:// or https://")
 
+    def _log(self) -> None:
+        """
+        Log the initialized settings for debugging purposes.
 
-settings = Settings()
+        This method logs the following configuration values:
+            - HTTP timeout
+            - Browser timeout
+            - Number of retries
+            - Maximum concurrency level
 
-logger.separator()
-logger.info(
-    f"Settings loaded: "
-    f"source=.env "
-    f"http_timeout={settings.http_timeout}s, "
-    f"browser_timeout={settings.browser_timeout}ms, "
-    f"retries={settings.retries}, "
-    f"max_concurrency={settings.max_concurrency}, "
-)
+        The log output is formatted for pipeline-level visibility.
+        """
+        logger.pipeline.settings(
+            http_timeout=self.http_timeout,
+            browser_timeout=self.browser_timeout,
+            retries=self.retries,
+            concurrency=self.max_concurrency
+        )
