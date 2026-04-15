@@ -2,9 +2,9 @@
 
 import asyncio
 from src.pipeline import PipelineRunner
-from src.utils import Logger
+from src.logger import AppLogger
 
-logger = Logger("Main")
+logger: AppLogger = AppLogger("Main")
 
 
 def main() -> None:
@@ -17,9 +17,9 @@ def main() -> None:
     try:
         asyncio.run(runner.run())
     except KeyboardInterrupt:
-        logger.warning("Pipeline interrupted by user.")
+        logger.pipeline.log_interrupted()
     except Exception as e:
-        logger.exception(f"Unexpected error occurred: {e}")
+        logger.pipeline.log_exception(e)
 
 
 if __name__ == "__main__":
