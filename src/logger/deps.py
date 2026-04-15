@@ -1,59 +1,34 @@
 # ./src/logger/deps.py
 
 """
-Shared dependencies and type definitions for logging modules.
+Shared dependencies and type exports for the logging subsystem.
 
-This module centralizes commonly used imports and type definitions
-across the logging subsystem. It helps reduce duplication and ensures
-consistent typing for logging-related components.
+This module centralizes commonly used standard library imports,
+project-level utilities, and shared type definitions for all logger
+components. It is used to reduce duplication and ensure consistency
+across the logging package.
 
-Includes:
-    - Standard logging and utility modules
-    - Type helpers (TypeVar, TypedDict)
-    - URL utilities for formatting/logging
-    - Common data structures for metrics (e.g., Counts)
+Exports:
+    logging: Standard Python logging module.
+    re: Regular expression module.
+    os: Operating system interface module.
+    Optional: Optional type from typing module.
+    URLUtils: Utility class for URL formatting and normalization.
+    Counts: Typed structure representing aggregated pipeline metrics.
 """
 
 import logging
 import re
 import os
-from typing import TypeVar, TypedDict, Optional
+from typing import Optional
 from src.utils.url_utils import URLUtils
-
-
-K = TypeVar("K")
-
-
-class Counts(TypedDict):
-    """
-    Type hint for counts dictionary.
-
-    Attributes:
-        total (int): Total count.
-        success (int): Success count.
-        failed (int): Failed count.
-        timeout (int): Timeout count.
-        blocked (int): Blocked count.
-        empty (int): Empty count.
-        captcha (int): Captcha count.
-    """
-    total: int
-    success: int
-    failed: int
-    timeout: int
-    blocked: int
-    empty: int
-    captcha: int
-
+from src.models import Counts
 
 __all__ = [
     "logging",
     "re",
     "os",
-    "TypeVar",
-    "TypedDict",
     "Optional",
     "URLUtils",
-    "K",
     "Counts"
 ]
