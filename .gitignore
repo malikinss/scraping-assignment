@@ -6,13 +6,31 @@ venv/
 __pycache__/
 *.pyc
 .env
-tmp.md
 src/clean.py
-solution.md
+
+# data files
 urls.csv
 results.csv
 results.json
 results.error
+
+
+# temprorary mds
+solution.md
+tmp.md
 task.md
 src.md
 structure.md
+
+config.md
+models.md
+pipeline.md
+scrapers.md
+content_detector.md
+input_loader.md
+metrics.md
+savers.md
+result_manager.md
+services.md
+utils.md
+logger.md
