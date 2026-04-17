@@ -115,6 +115,12 @@ class PipelineLogger:
         """Log that the pipeline terminated because no URLs were provided."""
         self.log.warning(LP.pipeline_terminated("No URLs to process."))
 
+    def no_results(self):
+        """
+        Log that the pipeline terminated because no results were produced.
+        """
+        self.log.warning(LP.pipeline_terminated("No results produced."))
+
     def interrupted(self):
         """Log that the pipeline was interrupted by user action."""
         self.log.warning(LP.pipeline_terminated("Interrupted by user."))
