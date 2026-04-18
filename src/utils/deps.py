@@ -6,14 +6,8 @@ Dependencies for the utils module.
 This module is used to import dependencies for the utils module.
 """
 
-import os
-import re
-import logging
 from urllib.parse import urlparse
+from typing import NamedTuple
+from src.models import URL, URLs
 
-__all__ = [
-    "os",
-    "re",
-    "logging",
-    "urlparse",
-]
+__all__ = ["urlparse", "URL", "URLs", "NamedTuple"]
