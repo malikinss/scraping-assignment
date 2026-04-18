@@ -1,64 +1,115 @@
 # ./src/scrapers/http_scraper.py
 
+"""
+HTTP Scraper Module
+===================
+
+This module provides an asynchronous HTTP scraper for fetching content
+from URLs.
+It uses `httpx` for making HTTP requests and supports features like:
+
+- Automatic retry logic
+- Proxy support
+- Timeout handling
+- PDF detection
+- Logging for each request
+
+Key Features:
+    - Async request handling
+    - Retry mechanism with exponential backoff
+    - PDF content detection
+    - Proxy support
+
+Classes:
+    HTTPScraper: Scrapes content from URLs.
+
+Dependencies:
+    - httpx: For making HTTP requests.
+    - asyncio: For asynchronous programming.
+    - src.scrapers.deps: Contains necessary imports for the module.
+
+Example:
+    >>> scraper = HTTPScraper()
+    >>> result = await scraper.fetch(1, "https://example.com")
+    >>> print(result)
+
+    ScrapeResult(
+        id='some-id',
+        url='https://example.com',
+        method='GET',
+        status=ScrapeStatus.SUCCESS,
+        latency=0.5,
+        content='Some content',
+        content_length=12,
+        error=None
+    )
+"""
+
 from .deps import (
     httpx,
     asyncio,
     Optional,
-    Logger,
+    AppLogger,
     URLUtils,
     settings,
     proxy_manager,
-    ScrapeMethod,
     ScrapeResult,
+    ScraperContext,
     URL,
 )
 from .result_builder import ResultBuilder
 
+METHOD = "HTTP"
 Response = httpx.Response
 Client = httpx.AsyncClient
 
-logger = Logger("HTTPScraper")
+logger = AppLogger("HTTPScraper")
 
 
 class HTTPScraper:
     """
-    Asynchronous HTTP scraper using httpx.AsyncClient.
-
-    Handles retries, timeouts, backoff, PDF detection, and structured
-    result building via ResultBuilder.
-
-    Attributes:
-        timeout (float): Max time to wait for HTTP requests.
-        retries (int): Number of retry attempts for failed requests.
-        proxy (Optional[str]): Proxy URL for HTTP requests.
+    HTTPScraper class for scraping HTTP content.
     """
 
     def __init__(self):
         """
-        Initialize the HTTPScraper with configuration settings.
+        Initialize the HTTPScraper.
 
-        Sets up timeout, retry count, and proxy settings from the
-        global settings object.
+        Creates an instance of HTTPScraper.
 
-        Returns:
-            None
+        Attributes:
+            timeout (float): The timeout for HTTP requests.
+            retries (int): The number of retries for HTTP requests.
+            proxy (Optional[str]): The proxy for HTTP requests.
         """
         self.timeout: float = settings.http_timeout
         self.retries: int = settings.retries
-        self.proxy: Optional[str] = proxy_manager.get_httpx_proxy().get(
-            settings.protocol
-        )
+        self.proxy: Optional[str] = self._init_proxy()
+
+    def _init_proxy(self) -> Optional[str]:
+        """
+        Initializes the proxy for HTTP requests.
+
+        Creates an instance of proxy for HTTP requests.
+
+        Returns:
+            Optional[str]: The proxy for HTTP requests.
+        """
+        proxy = proxy_manager.get_httpx_proxy().get(settings.protocol)
+
+        if proxy is None:
+            logger.scraper.no_proxy(METHOD)
+
+        return proxy
 
     # ===== CLIENT =====
 
     def _build_client(self) -> Client:
         """
-        Build a new httpx.AsyncClient instance.
-
-        Configures timeout, user-agent, proxy, and redirects.
+        Builds an HTTP client.
 
         Returns:
-            Client: Configured AsyncClient instance.
+            Client: An HTTP client instance.
         """
         return Client(
             timeout=self.timeout,
@@ -70,185 +121,108 @@ class HTTPScraper:
             follow_redirects=True,
         )
 
-    # ===== CORE REQUEST LOGIC =====
+    # ===== CORE REQUEST =====
 
     async def _request_with_retry(
-        self, client: Client, id: int, url: URL
+        self, client: Client, base_ctx: ScraperContext
     ) -> Optional[Response]:
         """
-        Make HTTP request with automatic retry logic.
-
-        Handles:
-        - Success (200 OK)
-        - Retries on failure
-        - Exponential backoff
-        - Exception handling (timeout, request errors)
-        - Logging for each attempt
+        Requests a URL with retry logic.
 
         Args:
-            client (Client): httpx.AsyncClient instance.
-            id (int): Unique request identifier.
-            url (URL): URL to request.
+            client (Client): The HTTP client.
+            base_ctx (ScraperContext): The base scraper context.
 
         Returns:
-            Optional[Response]: Response object if successful, None otherwise.
+            Optional[Response]: The response from the request.
         """
-        for attempt in range(1, self.retries + 1):
-            if attempt > 1:
-                self._log(id, attempt, url, "RETRYING")
-            else:
-                self._log(id, attempt, url, "START")
+
+        for attempt in range(1, base_ctx.retries + 1):
+            ctx: ScraperContext = base_ctx.with_updates(attempt=attempt)
+
+            self._start_or_retry(ctx)
 
             try:
-                response = await self._make_request(client, url)
+                response = await client.get(ctx.url)
 
                 if self._is_success(response):
+                    logger.scraper.success(ctx)
                     return response
 
-                self._log_status_failure(id, attempt, url, response)
+                logger.scraper.fail(ctx, status=response.status_code)
 
             except Exception as e:
-                self._handle_exception(id, attempt, url, e)
+                self._handle_exception(e, ctx)
 
-            if attempt < self.retries+1:
+            if attempt < base_ctx.retries:
                 await self._backoff(attempt)
 
-        self._log(id, attempt, url, "ALL RETRIES FAILED", level="error")
+        logger.scraper.all_failed(ctx)
         return None
 
-    async def _make_request(self, client: Client, url: URL) -> Response:
+    def _start_or_retry(self, ctx: ScraperContext) -> None:
         """
-        Execute a single HTTP GET request.
+        Logs the start or retry of a request.
 
         Args:
-            client (Client): httpx.AsyncClient instance.
-            url (URL): URL to request.
-
-        Returns:
-            Response: Response object.
+            ctx (ScraperContext): The scraper context.
         """
-        return await client.get(url)
-
-    def _log_status_failure(
-        self, id: int, attempt: int, url: URL, response: Response
-    ) -> None:
-        """
-        Log non-successful HTTP response status codes.
-
-        Args:
-            id (int): Unique request identifier.
-            attempt (int): Retry attempt number.
-            url (URL): Target URL.
-            response (Response): Response object with status code.
-
-        Returns:
-            None
-        """
-        self._log(
-            id, attempt, url,
-            f"STATUS CODE:{response.status_code}", level="warning"
-        )
-
-    def _handle_exception(
-        self, id: int, attempt: int, url: URL, error: Exception
-    ) -> None:
-        """
-        Handle and log exceptions that occur during HTTP requests.
-
-        Args:
-            id (int): Unique request identifier.
-            attempt (int): Retry attempt number.
-            url (URL): Target URL.
-            error (Exception): Exception that occurred.
-
-        Returns:
-            None
-        """
-        if isinstance(error, httpx.TimeoutException):
-            self._log(
-                id, attempt, url,
-                "TIMEOUT", level="warning"
-            )
-        elif isinstance(error, httpx.RequestError):
-            level = "warning" if attempt == self.retries else "debug"
-            self._log(
-                id, attempt, url,
-                f"REQUEST ERROR: {error}", level=level
-            )
+        if ctx.attempt == 1:
+            logger.scraper.start(ctx)
         else:
-            self._log(
-                id, attempt, url,
-                f"UNEXPECTED ERROR: {error}", level="error"
-            )
-    # ===== HELPERS =====
+            logger.scraper.retry(ctx)
 
-    def _log(
-        self,
-        id: int,
-        attempt: int,
-        url: URL,
-        message: str,
-        level: str = "debug",
-    ) -> None:
+    # ===== EXCEPTION HANDLING =====
+
+    def _handle_exception(self, error: Exception, ctx: ScraperContext) -> None:
         """
-        Centralized logging helper for HTTP scraping.
-
-        Formats log messages consistently with ID, type, URL, attempt,
-        and timeout information.
+        Handles exceptions that occur during a request.
 
         Args:
-            id (int): Unique request identifier.
-            attempt (int): Retry attempt number.
-            url (URL): Target URL.
-            message (str): Message to log.
-            level (str, optional): Logging level.
-
-        Returns:
-            None
+            error (Exception): The exception to handle.
+            ctx (ScraperContext): The scraper context.
         """
-        short_url = URLUtils.short_url(url)
-        msg = (
-            f"[ID:{id}][HTTP] {message} "
-            f"(attempt {attempt}/{self.retries}) "
-            f"url={short_url} timeout={self.timeout}s"
-        )
+        ctx_error = ctx.with_updates(error=str(error))
+        if isinstance(error, httpx.TimeoutException):
+            logger.scraper.timeout(ctx_error)
+        elif isinstance(error, httpx.RequestError):
+            logger.scraper.request_error(ctx_error, str(error))
+        else:
+            logger.scraper.exception(ctx_error, str(error))
 
-        getattr(logger, level)(msg)
+    # ===== HELPERS =====
 
     def _is_success(self, response: Response) -> bool:
         """
-        Check if HTTP response indicates success.
+        Checks if the response is successful.
 
         Args:
-            response (Response): Response object to check.
+            response (Response): The response to check.
 
         Returns:
-            bool: True if status code is 200, False otherwise.
+            bool: True if the response is successful, False otherwise.
         """
         return response.status_code == 200
 
     async def _backoff(self, attempt: int) -> None:
         """
-        Calculate and apply exponential backoff delay.
+        Waits for a backoff period before the next retry.
 
         Args:
-            attempt (int): Current retry attempt number.
-
-        Returns:
-            None
+            attempt (int): The current attempt number.
         """
         delay = min(2 ** attempt, 10)
         await asyncio.sleep(delay)
 
     def _is_pdf(self, response: Response) -> bool:
         """
-        Check if response is a PDF.
+        Checks if the response is a PDF.
 
         Args:
-            response (Response): Response object to check.
+            response (Response): The response to check.
 
         Returns:
-            bool: True if response is a PDF, False otherwise.
+            bool: True if the response is a PDF, False otherwise.
         """
         content_type = response.headers.get("Content-Type", "").lower()
         ends_with_pdf = response.url.path.endswith(".pdf")
@@ -259,34 +233,38 @@ class HTTPScraper:
 
     async def fetch(self, id: int, url: URL) -> ScrapeResult:
         """
-        Fetch a URL and return a structured ScrapeResult.
-
-        Performs retries, handles PDF detection, and builds result via
-        ResultBuilder.
+        Fetches the content of a URL.
 
         Args:
-            id (int): Unique request ID.
-            url (URL): URL to scrape.
+            id (int): The ID of the scrape.
+            url (URL): The URL to scrape.
 
         Returns:
-            ScrapeResult: Structured result with content or error status.
+            ScrapeResult: The result of the scrape.
         """
-        builder = ResultBuilder(ScrapeMethod.HTTPX)
+        builder: ResultBuilder = ResultBuilder()
+        base_ctx: ScraperContext = ScraperContext(
+            id=id,
+            method=METHOD,
+            url=url,
+            timeout=self.timeout,
+            retries=self.retries,
+        )
 
         try:
             async with self._build_client() as client:
-                response = await self._request_with_retry(client, id, url)
+                response = await self._request_with_retry(client, base_ctx)
 
             if response is None:
-                return builder.build_failure(id, url, "No response")
+                return builder.failure(base_ctx, "No response")
 
             if self._is_pdf(response):
-                return builder.build_pdf(id, url)
+                return builder.pdf(base_ctx)
 
-            return builder.process(id, url, response.text)
+            return builder.process(base_ctx, response.text)
 
         except httpx.TimeoutException:
-            return builder.build_timeout(id, url)
+            return builder.timeout(base_ctx)
 
         except Exception as e:
-            return builder.build_failure(id, url, str(e))
+            return builder.failure(base_ctx, str(e))
