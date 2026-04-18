@@ -1,18 +1,25 @@
 # ./src/services/input_loader/__init__.py
 
 """
-URL input loading module.
+Input Loader Service Package
+============================
 
-This module provides the `URLInputLoader` class, which handles
-loading, cleaning, and validating URLs from a CSV file.
+This package provides functionality for loading URLs from a file.
 
-Example:
-    from .input_loader import URLInputLoader
+Public API:
+    - URLInputLoader: Class for loading and validating URLs from a file.
 
-    loader = URLInputLoader("urls.csv")
-    urls = loader.load().clean().validate().get_urls()
+Internal Components:
+    - input_loader.py: Main implementation of URL loading pipeline.
+    - deps.py: Dependencies and type aliases.
+
+Usage:
+    >>> from src.services.input_loader import URLInputLoader
+    >>> loader = URLInputLoader("data/raw/urls.txt")
+    >>> urls = loader.run()
+    >>> print(urls)
 """
 
-from .input_loader import URLInputLoader, URL, URLs
+from .input_loader import URLInputLoader
 
-__all__ = ["URLInputLoader", "URL", "URLs"]
+__all__ = ["URLInputLoader"]
