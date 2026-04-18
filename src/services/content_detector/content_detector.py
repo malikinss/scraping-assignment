@@ -1,131 +1,140 @@
 # ./src/services/content_detector/content_detector.py
 
-from .deps import (
-    List,
-    Logger,
-    ScrapeStatus,
-)
+"""
+Content Detector Service
+========================
 
-logger = Logger("ContentDetector")
+This module provides a structured way to detect the status of scraped content
+based on predefined rules.
+
+Key Features:
+    - Rule-based content detection
+    - Empty content detection with threshold
+    - Common blocking and captcha patterns
+    - Singleton instance for easy access
+
+Classes:
+    Rule: Represents a detection rule.
+    ContentDetector: Handles content detection logic.
+
+Usage:
+    >>> from src.services.content_detector import detector
+    >>> status = detector.detect(content)
+    >>> print(status)
+
+Example:
+    >>> content = "403 Forbidden"
+    >>> status = detector.detect(content)
+    >>> print(status)
+    ScrapeStatus.BLOCKED
+
+"""
+
+from .deps import ScrapeStatus, dataclass, Tuple
+
+KeyWords = Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Rule:
+    """
+    Rule for content detection.
+
+    Attributes:
+        status (ScrapeStatus): The status of the scrape.
+        keywords (KeyWords): The keywords to match.
+    """
+    status: ScrapeStatus
+    keywords: KeyWords
+
+
+Rules = Tuple[Rule, ...]
 
 
 class ContentDetector:
     """
-    Detects the type of content based on text analysis.
+    ContentDetector class for content detection.
 
-    Methods:
-        detect(content): Returns ScrapeStatus based on content analysis.
+    Attributes:
+        EMPTY_THRESHOLD (int): The threshold for empty content.
+        rules (Rules): The rules for content detection.
     """
 
+    # ===== CONSTANTS =====
+    EMPTY_THRESHOLD: int = 100
+    rules: Rules = (
+        Rule(
+            status=ScrapeStatus.CAPTCHA,
+            keywords=(
+                "captcha",
+                "verify you are human",
+                "i am not a robot",
+                "cloudflare",
+                "recaptcha"
+            )
+        ),
+        Rule(
+            status=ScrapeStatus.BLOCKED,
+            keywords=(
+                "access denied",
+                "forbidden",
+                "blocked",
+                "403",
+                "request blocked"
+            )
+        ),
+    )
+
+    # ===== PUBLIC =====
     def detect(self, content: str) -> ScrapeStatus:
         """
-        Detects the content status: SUCCESS, EMPTY, CAPTCHA, or BLOCKED.
+        Detect the status of the scrape.
 
         Args:
-            content (str): The text content to analyze.
+            content (str): The content of the scrape.
 
         Returns:
-            ScrapeStatus: The detected status.
-
-        Example:
-            >>> detector = ContentDetector()
-            >>> detector.detect("Some content")
-            ScrapeStatus.SUCCESS
+            ScrapeStatus: The status of the scrape.
         """
         if not content or self._is_empty(content):
             return ScrapeStatus.EMPTY
 
-        if self._is_captcha(content):
-            return ScrapeStatus.CAPTCHA
+        content_lower = content.lower()
 
-        if self._is_blocked(content):
-            return ScrapeStatus.BLOCKED
+        for rule in self.rules:
+            if self._match(rule.keywords, content_lower):
+                return rule.status
 
         return ScrapeStatus.SUCCESS
 
+    # ===== RULE ENGINE =====
+    def _match(self, keywords: KeyWords, content: str) -> bool:
+        """
+        Check if any of the keywords match the content.
+
+        Args:
+            keywords (KeyWords): The keywords to match.
+            content (str): The content to match.
+
+        Returns:
+            bool: True if any of the keywords match the content,
+                  False otherwise.
+        """
+        return any(keyword in content for keyword in keywords)
+
     def _is_empty(self, content: str) -> bool:
         """
-        Returns True if the content is considered empty (short).
+        Check if the content is empty.
 
         Args:
-            content (str): The text content to analyze.
+            content (str): The content to check.
 
         Returns:
-            bool: True if the content is considered empty.
-
-        Example:
-            >>> detector = ContentDetector()
-            >>> detector._is_empty("Some content")
-            False
+            bool: True if the content is empty, False otherwise.
         """
-        return len(content.strip()) < 100
-
-    def _is_captcha(self, content: str) -> bool:
-        """
-        Returns True if the content likely contains a CAPTCHA challenge.
-
-        Args:
-            content (str): The text content to analyze.
-
-        Returns:
-            bool: True if the content likely contains a CAPTCHA challenge.
-
-        Example:
-            >>> detector = ContentDetector()
-            >>> detector._is_captcha("Some content")
-            False
-        """
-        keywords: List[str] = [
-            "captcha",
-            "verify you are human",
-            "i am not a robot",
-            "cloudflare",
-            "recaptcha"
-        ]
-        return self._contains_keywords(keywords, content)
-
-    def _is_blocked(self, content: str) -> bool:
-        """
-        Returns True if the content indicates the request was blocked.
-
-        Args:
-            content (str): The text content to analyze.
-
-        Returns:
-            bool: True if the content indicates the request was blocked.
-
-        Example:
-            >>> detector = ContentDetector()
-            >>> detector._is_blocked("Some content")
-            False
-        """
-        keywords: List[str] = [
-            "access denied",
-            "forbidden",
-            "blocked",
-            "403",
-            "request blocked"
-        ]
-        return self._contains_keywords(keywords, content)
-
-    def _contains_keywords(self, keywords: List[str], content: str) -> bool:
-        """
-        Checks if any keyword is present in the content (case-insensitive).
-
-        Args:
-            keywords (List[str]): The keywords to search for.
-            content (str): The text content to analyze.
-
-        Returns:
-            bool: True if any keyword is present in the content.
-
-        Example:
-            >>> detector = ContentDetector()
-            >>> detector._contains_keywords(["captcha"], "captcha")
-            True
-        """
-        content_lower = content.lower()
-        return any(keyword in content_lower for keyword in keywords)
+        if not content:
+            return True
+        return len(content.strip()) < self.EMPTY_THRESHOLD
 
 
 # Singleton instance for convenience
