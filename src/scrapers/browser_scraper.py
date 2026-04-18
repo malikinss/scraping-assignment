@@ -1,5 +1,50 @@
 # ./src/scrapers/browser_scraper.py
 
+"""
+Browser Scraper Module
+======================
+
+This module provides an asynchronous browser scraper for fetching content
+from URLs. It uses `playwright` for making HTTP requests and supports features
+like:
+
+- Automatic retry logic
+- Proxy support
+- Timeout handling
+- PDF detection
+- Logging for each request
+
+Key Features:
+    - Async request handling
+    - Retry mechanism with exponential backoff
+    - PDF content detection
+    - Proxy support
+
+Classes:
+    BrowserScraper: Scrapes content from URLs.
+
+Dependencies:
+    - playwright: For making HTTP requests.
+    - asyncio: For asynchronous programming.
+    - src.scrapers.deps: Contains necessary imports for the module.
+
+Example:
+    >>> scraper = BrowserScraper()
+    >>> result = await scraper.fetch(1, "https://example.com")
+    >>> print(result)
+
+    ScrapeResult(
+        id='some-id',
+        url='https://example.com',
+        method='BROWSER',
+        status=ScrapeStatus.SUCCESS,
+        latency=0.5,
+        content='Some content',
+        content_length=12,
+        error=None
+    )
+"""
+
 from .deps import (
     Optional,
     Playwright,
@@ -8,40 +53,36 @@ from .deps import (
     Page,
     BrowserContext,
     TimeoutError,
-    Logger,
-    URLUtils,
+    AppLogger,
     settings,
     proxy_manager,
-    ScrapeMethod,
     ScrapeResult,
-    URL
+    ScraperContext,
+    URL,
+    AsyncGenerator,
+    asynccontextmanager
 )
 
 from .result_builder import ResultBuilder
 
-logger = Logger("BrowserScraper")
+logger = AppLogger("BrowserScraper")
+METHOD = "BROWSER"
 
 
 class BrowserScraper:
     """
-    Asynchronous browser scraper using Playwright.
-
-    Handles dynamic web pages that require JavaScript execution. Manages
-    browser lifecycle, page creation, content retrieval, and cleanup.
+    BrowserScraper class for scraping content from URLs using Playwright.
 
     Attributes:
-        timeout (int): Max wait time (ms) for page loading and network idle.
-        browser (Optional[Browser]): Active Playwright browser instance.
-        playwright (Optional[Playwright]): Playwright engine instance.
-        proxy (Optional[dict]): Proxy settings for browser requests.
+        timeout (int): The timeout for browser operations.
+        browser (Optional[Browser]): The browser instance.
+        playwright (Optional[Playwright]): The playwright instance.
+        proxy (Optional[dict]): The proxy for browser operations.
     """
 
     def __init__(self) -> None:
         """
-        Initialize the BrowserScraper.
-
-        Sets the timeout, initializes browser and Playwright to None,
-        and loads proxy settings from configuration.
+        Creates an instance of BrowserScraper.
         """
         self.timeout: int = settings.browser_timeout
         self.browser: Optional[Browser] = None
@@ -52,13 +93,7 @@ class BrowserScraper:
 
     async def launch(self) -> None:
         """
-        Launch the Playwright engine and Chromium browser.
-
-        If the browser is already launched, does nothing. Uses headless
-        mode and applies proxy settings if configured.
-
-        Returns:
-            None
+        Launches the browser for browser operations.
         """
         if self.browser:
             return
@@ -71,13 +106,7 @@ class BrowserScraper:
 
     async def close_browser(self) -> None:
         """
-        Close the browser and stop Playwright.
-
-        Safely handles cases when browser or Playwright are already None.
-        Ensures proper cleanup to avoid memory leaks.
-
-        Returns:
-            None
+        Closes the browser for browser operations.
         """
         if self.browser:
             await self.browser.close()
@@ -87,22 +116,23 @@ class BrowserScraper:
             await self.playwright.stop()
             self.playwright = None
 
-    # ===== INTERNAL HELPERS =====
+    async def _ensure_browser(self) -> None:
+        """
+        Ensures the browser is launched for browser operations.
+        """
+        if not self.browser:
+            await self.launch()
+
+    # ===== CONTEXT MANAGEMENT =====
 
     async def _create_context(self) -> BrowserContext:
         """
-        Create a new browser context.
-
-        Each context is isolated (cookies, cache, storage) from others.
-
-        Raises:
-            RuntimeError: If the browser has not been launched.
+        Creates a new browser context for browser operations.
 
         Returns:
-            BrowserContext: A new browser context instance.
+            BrowserContext: The new browser context.
         """
-        if not self.browser:
-            raise RuntimeError("Browser not initialized. Call launch()")
+        await self._ensure_browser()
 
         context: BrowserContext = await self.browser.new_context(
             user_agent=settings.user_agent,
@@ -110,29 +140,30 @@ class BrowserScraper:
         )
         return context
 
-    async def _create_page(self) -> tuple[BrowserContext, Page]:
+    @asynccontextmanager
+    async def _page(self) -> AsyncGenerator[Page, None]:
         """
-        Create a new page within a fresh browser context.
+        Creates a new page for browser operations.
 
         Returns:
-            tuple[BrowserContext, Page]: The context and the new page.
+            AsyncGenerator[Page, None]: The new page and its context.
         """
         context: BrowserContext = await self._create_context()
         page: Page = await context.new_page()
-        return context, page
+        try:
+            yield page
+        finally:
+            await self._cleanup(page, context)
 
     async def _cleanup(
         self, page: Optional[Page], context: Optional[BrowserContext]
     ) -> None:
         """
-        Close page and context to release resources.
+        Cleans up the browser context and page.
 
         Args:
-            page (Optional[Page]): Page to close.
-            context (Optional[BrowserContext]): Context to close.
-
-        Returns:
-            None
+            page (Optional[Page]): The page to clean up.
+            context (Optional[BrowserContext]): The context to clean up.
         """
         if page:
             await page.close()
@@ -143,107 +174,80 @@ class BrowserScraper:
 
     async def fetch(self, id: int, url: URL) -> ScrapeResult:
         """
-        Fetch a page and return a structured ScrapeResult.
-
-        1. Creates a page.
-        2. Loads the URL.
-        3. Waits for network idle and optional timeout.
-        4. Extracts content.
-        5. Builds ScrapeResult with ResultBuilder.
+        Fetches content from a URL using browser operations.
 
         Args:
-            id (int): Unique request identifier.
-            url (URL): URL to scrape.
+            id (int): The ID of the scraper request.
+            url (URL): The URL to fetch.
 
         Returns:
-            ScrapeResult: Result object including status, latency,
-                          content, or error.
+            ScrapeResult: The result of the browser operations.
         """
-        builder: ResultBuilder = ResultBuilder(ScrapeMethod.PLAYWRIGHT)
-        context: Optional[BrowserContext] = None
-        page: Optional[Page] = None
+        ctx: ScraperContext = ScraperContext(
+            id=id,
+            method=METHOD,
+            url=url,
+            timeout=self.timeout
+        )
 
-        self._log(id, url, "START")
+        builder: ResultBuilder = ResultBuilder()
+        logger.scraper.start(ctx)
 
         try:
-            context, page = await self._create_page()
-            content: Optional[str] = await self.get_content(id, url, page)
-            return builder.process(id, url, content)
+            async with self._page() as page:
+                content: Optional[str] = await self._get_content(ctx, page)
+
+            if content is None:
+                return builder.empty(ctx)
+
+            return builder.process(ctx, content)
 
         except TimeoutError:
-            return builder.build_timeout(id, url)
+            return builder.timeout(ctx)
 
         except Exception as e:
-            return builder.build_failure(id, url, str(e))
+            return builder.failure(ctx, str(e))
 
-        finally:
-            await self._cleanup(page, context)
+    # ===== PAGE PROCESSING =====
 
-    async def get_content(
+    async def _get_content(
         self,
-        id: int,
-        url: URL,
+        ctx: ScraperContext,
         page: Page
     ) -> Optional[str]:
         """
-        Navigate to URL and extract page content.
-
-        Waits for network idle and an additional small delay to ensure
-        page stability.
+        Fetches content from a URL using browser operations.
 
         Args:
-            id (int): Unique request ID.
-            url (URL): URL to fetch.
-            page (Page): Playwright page instance.
+            ctx (ScraperContext): The scraper context.
+            page (Page): The page to fetch content from.
 
         Returns:
-            Optional[str]: HTML content of the page, or None if failed.
+            Optional[str]: The content from the page.
         """
         try:
-            await page.goto(url, timeout=self.timeout)
+            await page.goto(ctx.url, timeout=ctx.timeout)
             await page.wait_for_load_state("networkidle")
-
-            wait_time: int = max(500, min(self.timeout, 2000))
-            await page.wait_for_timeout(wait_time)
-
+            await self._smart_wait(page)
             content: Optional[str] = await page.content()
             length: int = len(content) if content else 0
-            self._log(id, url, f"CONTENT LOADED length={length}")
+            msg: str = f"CONTENT_LOADED length={length}"
+            logger.scraper.event(ctx, msg, "debug")
             return content
 
         except TimeoutError:
-            self._log(id, url, "TIMEOUT", "error")
+            logger.scraper.timeout(ctx)
             return None
         except Exception as e:
-            self._log(id, url, f"ERROR: {e}", "error")
+            logger.scraper.request_error(ctx, str(e))
             return None
 
-    # ===== LOGGING =====
-
-    def _log(
-        self,
-        id: int,
-        url: URL,
-        message: str,
-        level: str = "debug",
-    ) -> None:
+    async def _smart_wait(self, page: Page) -> None:
         """
-        Central logging helper for browser scraping.
-
-        Formats log messages consistently with ID, type, URL, and timeout.
+        Waits for the page to load using smart wait.
 
         Args:
-            id (int): Unique request ID.
-            url (URL): Target URL.
-            message (str): Message to log.
-            level (str, optional): Logging level.
-
-        Returns:
-            None
+            page (Page): The page to wait for.
         """
-        short_url = URLUtils.short_url(url)
-        msg = (
-            f"[ID:{id}][BROWSER] {message} "
-            f"url={short_url} timeout={self.timeout}ms"
-        )
-        getattr(logger, level)(msg)
+        delay: int = max(300, min(self.timeout // 2, 2000))
+        await page.wait_for_timeout(delay)
