@@ -1,8 +1,28 @@
 # ./src/services/result_manager/savers/base.py
 
+"""
+Base Saver
+========
+
+This abstract base class defines the interface for all saver classes.
+
+It provides a common structure for saving results and handles file
+I/O operations, including directory creation and error handling.
+
+Usage:
+    >>> from src.services.result_manager.savers import BaseSaver
+    >>> saver = BaseSaver()
+    >>> saver.save(results)
+
+Example:
+    >>> from src.services.result_manager.savers import BaseSaver
+    >>> saver = BaseSaver()
+    >>> saver.save(results)
+"""
+
 from .deps import (
     Path,
-    Logger,
+    AppLogger,
     ABC,
     abstractmethod,
     Callable,
@@ -10,65 +30,66 @@ from .deps import (
     ScrapeResults
 )
 
-logger = Logger("BaseSaver")
+WriterFunc = Callable[[Any], None]
+
+logger = AppLogger("BaseSaver")
 
 
 class BaseSaver(ABC):
     """
-    Abstract base class for result persistence strategies.
+    This abstract base class defines the interface for all saver classes.
 
-    Defines the interface for saving `ScrapeResults` and provides a shared
-    utility method for safe file writing.
-
-    Subclasses should implement the `save` method to define how results
-    are serialized and stored (e.g., CSV, JSON, database).
+    It provides a common structure for saving results and handles file
+    I/O operations, including directory creation and error handling.
     """
 
     @abstractmethod
     def save(self, results: ScrapeResults) -> None:
         """
-        Persist scrape results.
+        Save the results to a file.
 
         Args:
-            results (ScrapeResults): Collection of scrape results to save.
+            results (ScrapeResults): Results of the scraping process.
 
         Raises:
-            NotImplementedError: Must be implemented by subclasses.
+            NotImplementedError: If the method is not implemented by
+                                 a subclass.
         """
         raise NotImplementedError(
             "Subclasses must implement the `save` method."
         )
 
+    # ===== CORE IO UTILITY =====
     @staticmethod
     def write_file(
         file_path: Path,
-        write_func: Callable[[Any], None],
+        writer: WriterFunc,
         mode: str = "w",
         description: str = "file",
     ) -> None:
         """
-        Write data to a file using a provided writer function.
-
-        Handles file opening and ensures consistent error logging.
-        The actual writing logic is delegated to `write_func`.
+        Write data to a file with proper error handling.
 
         Args:
-            file_path (Path): Path to the target file.
-            write_func (Callable[[Any], None]): Function that receives
-                a file-like object and writes data to it.
-            mode (str, optional): File open mode (e.g., "w", "a").
-                Defaults to "w".
-            description (str, optional): Human-readable description of
-                the file (used in logging). Defaults to "file".
+            file_path (Path): Path to the file to write.
+            writer (WriterFunc): Function to write data to the file.
+            mode (str): Mode to open the file in.
+            description (str): Description of the file.
 
         Raises:
-            Exception: Re-raises any exception encountered during writing.
+            IOError: If the file cannot be written to.
         """
         try:
+            # Ensure parent directory exists
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
             with file_path.open(mode, encoding="utf-8") as f:
-                write_func(f)
-        except Exception:
-            logger.exception(
-                f"Failed to save {description}: path={file_path}"
+                writer(f)
+
+        # Handle exceptions
+        except Exception as e:
+            logger.storage.save_failure(
+                description,
+                f"Failed to save {description}: path={file_path}, error={e}"
             )
             raise

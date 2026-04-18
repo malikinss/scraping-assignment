@@ -1,146 +1,140 @@
 # ./src/services/result_manager/savers/csv_saver.py
 
+"""
+CSV Result Saver
+==============
+
+This class is responsible for saving results to a CSV file.
+
+Usage:
+    >>> from src.services.result_manager.savers import CSVResultSaver
+    >>> saver = CSVResultSaver("results.csv")
+    >>> saver.save(results)
+
+Example:
+    >>> from src.services.result_manager.savers import CSVResultSaver
+    >>> saver = CSVResultSaver("results.csv")
+    >>> saver.save(results)
+"""
+
 from .deps import (
     Any,
     csv,
     List,
     Path,
-    Logger,
+    AppLogger,
     ScrapeResults
 )
 from .base import BaseSaver
 
-logger = Logger("CSVSaver")
+logger = AppLogger("CSVSaver")
 
 
 class CSVResultSaver(BaseSaver):
     """
-    Saver implementation for writing scrape results to a CSV file.
-
-    Serializes `ScrapeResults` into CSV format using `csv.DictWriter`.
-    Supports both overwrite and append modes, and ensures consistent
-    field ordering and header management.
+    This class is responsible for saving results to a CSV file.
     """
+
+    FIELDNAMES: List[str] = [
+        "id",
+        "url",
+        "method",
+        "status",
+        "latency",
+        "content_length",
+        "error",
+    ]
 
     def __init__(self, file_path: str, append: bool = False):
         """
-        Initialize the CSV saver.
+        Initialize the CSVResultSaver.
 
         Args:
             file_path (str): Path to the CSV file.
-            append (bool, optional): If True, appends to the file.
-                Otherwise overwrites it. Defaults to False.
+            append (bool): Whether to append to the CSV file.
         """
         self.file_path: Path = Path(file_path)
         self.append: bool = append
 
-    def save(self, results: ScrapeResults) -> None:
-        """
-        Save scrape results to a CSV file.
-
-        Skips writing if results are empty. Uses BaseSaver's `write_file`
-        utility to ensure safe file operations.
-
-        Args:
-            results (ScrapeResults): Collection of scrape results.
-
-        Raises:
-            Exception: Propagates exceptions raised during file writing.
-        """
-        if not results:
-            msg: str = f"CSV save skipped: no results path={self.file_path}"
-            logger.debug(msg)
-            return
-
-        def writer(f):
-            """
-            Write rows into CSV file.
-
-            Args:
-                f (IO[Any]): File-like object opened for writing.
-            """
-            csv_writer = csv.DictWriter(f, fieldnames=self._get_fieldnames())
-            self._handle_header(csv_writer)
-
-            for r in results:
-                csv_writer.writerow(self._get_filtered_row(r.to_dict()))
-
-        self.write_file(
-            self.file_path,
-            writer,
-            self._get_mode(),
-            description="CSV file"
-        )
-
-        logger.info(f"CSV saved: path={self.file_path} count={len(results)}")
-
-    # ===== INTERNAL HELPERS =====
-
-    def _get_mode(self) -> str:
-        """
-        Determine file open mode.
-
-        Returns:
-            str: "a" for append mode or "w" for overwrite mode.
-        """
-        return "a" if self.append else "w"
-
-    def _get_fieldnames(self) -> List[str]:
-        """
-        Return the ordered list of CSV columns.
-
-        Returns:
-            List[str]: Field names for CSV output.
-        """
-        return [
-            "id",
-            "url",
-            "method",
-            "status",
-            "latency",
-            "content_length",
-            "error",
-        ]
-
-    def _get_filtered_row(self, row: dict[str, Any]) -> dict[str, Any]:
-        """
-        Filter and normalize a row to match CSV fieldnames.
-
-        Ensures only expected fields are written and fills missing values
-        with None.
-
-        Args:
-            row (dict[str, Any]): Raw row dictionary.
-
-        Returns:
-            dict[str, Any]: Filtered row aligned with CSV schema.
-        """
-        return {k: row.get(k, None) for k in self._get_fieldnames()}
-
-    def _need_header(self) -> bool:
-        """
-        Determine whether the CSV header should be written.
-
-        Header is written if:
-            - File is opened in overwrite mode
-            - File does not exist
-            - File exists but is empty
-
-        Returns:
-            bool: True if header should be written.
-        """
-        return (
+        self._need_header = (
             not self.append
             or not self.file_path.exists()
             or self.file_path.stat().st_size == 0
         )
 
-    def _handle_header(self, writer: csv.DictWriter) -> None:
+    # ===== PUBLIC =====
+
+    def save(self, results: ScrapeResults) -> None:
         """
-        Write CSV header if needed.
+        Save the results to a CSV file.
 
         Args:
-            writer (csv.DictWriter): CSV writer instance.
+            results (ScrapeResults): Results of the scraping process.
         """
-        if self._need_header():
+        if not results:
+            logger.storage.no_results("CSV", str(self.file_path))
+            return
+
+        self.write_file(
+            self.file_path,
+            lambda f: self._write_csv(f, results),
+            self._get_mode(),
+            description="CSV file"
+        )
+
+        logger.storage.file_save_success(
+            "CSV",
+            str(self.file_path),
+            len(results)
+        )
+
+    # ===== CORE WRITER =====
+
+    def _write_csv(self, f, results: ScrapeResults) -> None:
+        """
+        Write the results to a CSV file.
+
+        Args:
+            f: File object to write the results to.
+            results (ScrapeResults): Results of the scraping process.
+        """
+        writer = csv.DictWriter(f, fieldnames=self.FIELDNAMES)
+
+        self._handle_header(writer)
+
+        for r in results:
+            row = r.to_dict()
+            writer.writerow(self._filter_row(row))
+
+    # ===== INTERNAL HELPERS =====
+
+    def _get_mode(self) -> str:
+        """
+        Get the mode to open the file in.
+
+        Returns:
+            str: Mode to open the file in.
+        """
+        return "a" if self.append else "w"
+
+    def _filter_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        """
+        Filter the row to include only the fieldnames.
+
+        Args:
+            row (dict[str, Any]): Row to filter.
+
+        Returns:
+            dict[str, Any]: Filtered row.
+        """
+        return {k: row.get(k, None) for k in self.FIELDNAMES}
+
+    def _handle_header(self, writer: csv.DictWriter) -> None:
+        """
+        Handle the header.
+
+        Args:
+            writer (csv.DictWriter): CSV writer.
+        """
+        if self._need_header:
             writer.writeheader()

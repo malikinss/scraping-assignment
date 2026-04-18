@@ -1,105 +1,115 @@
 # ./src/services/result_manager/savers/error_saver.py
 
+"""
+Error Saver
+============
+
+This class is responsible for saving errors to a file.
+
+Usage:
+    >>> from src.services.result_manager.savers import ErrorSaver
+    >>> saver = ErrorSaver("errors.txt")
+    >>> saver.save(results)
+
+Example:
+    >>> from src.services.result_manager.savers import ErrorSaver
+    >>> saver = ErrorSaver("errors.txt")
+    >>> saver.save(results)
+"""
+
 from .base import BaseSaver
 from .deps import (
     Any,
     List,
     Path,
-    Logger,
+    AppLogger,
     ScrapeResult,
-    ScrapeResults
+    ScrapeResults,
+    IO
 )
 
-logger = Logger("ErrorSaver")
+logger = AppLogger("ErrorSaver")
 
 
-class ErrorLogger(BaseSaver):
+class ErrorSaver(BaseSaver):
     """
-    Saver implementation for logging failed scrape results to a file.
-
-    Filters `ScrapeResults` to include only entries with errors and writes
-    them in a human-readable, line-based format.
-
-    Each line contains key fields separated by a delimiter, making the file
-    easy to inspect and parse.
+    This class is responsible for saving errors to a file.
     """
 
     def __init__(self, file_path: str):
         """
-        Initialize the error logger.
+        Initialize the ErrorSaver.
 
         Args:
-            file_path (str): Path to the file where errors will be stored.
+            file_path (str): Path to the error file.
         """
         self.file_path: Path = Path(file_path)
 
+    # ===== PUBLIC =====
+
     def save(self, results: ScrapeResults) -> None:
         """
-        Save only failed results (with errors) to a file.
-
-        Skips execution if:
-            - No results are provided
-            - No errors are found in results
+        Save the errors to a file.
 
         Args:
-            results (ScrapeResults): Collection of scrape results.
-
-        Raises:
-            Exception: Propagates exceptions raised during file writing.
+            results (ScrapeResults): Results of the scraping process.
         """
         if not results:
-            logger.debug("Error save skipped: no results")
+            logger.storage.no_results("Error", str(self.file_path))
             return
 
-        total = len(results)
         errors: ScrapeResults = results.filter(lambda r: r.error is not None)
-        error_count = len(errors)
-
-        if error_count == 0:
-            logger.debug(f"Error save skipped: no errors total={total}")
+        if not errors:
+            logger.storage.no_results("Error", str(self.file_path))
             return
 
-        def writer(f):
-            """
-            Write formatted error lines to file.
-
-            Args:
-                f (IO[Any]): File-like object opened for writing.
-            """
-            f.writelines(self._format_error(r) for r in errors)
-
-        self.write_file(self.file_path, writer, description="error file")
-
-        logger.info(
-            f"Errors saved: "
-            f"path={self.file_path} "
-            f"errors={error_count} "
-            f"total={total}"
+        self.write_file(
+            self.file_path,
+            lambda f: self._writer(f, errors),
+            description="error file"
         )
+
+        logger.storage.file_save_success(
+            "Error",
+            str(self.file_path),
+            len(errors)
+        )
+
+    # ===== CORE =====
+
+    def _writer(self, file: IO[str], errors: ScrapeResults) -> None:
+        """
+        Write the errors to a file.
+
+        Args:
+            file (IO[str]): File object to write the errors to.
+            errors (ScrapeResults): Results of the scraping process.
+        """
+        file.writelines(self._format_error(r) for r in errors)
 
     # ===== INTERNAL HELPERS =====
 
     def _safe_str(self, value: Any) -> str:
         """
-        Safely convert a value to string.
+        Convert a value to a string, replacing None with "-".
 
         Args:
             value (Any): Value to convert.
 
         Returns:
-            str: String representation or "-" if value is None.
+            str: String representation of the value.
         """
         return str(value) if value is not None else "-"
 
     def _get_fields(self, result: ScrapeResult) -> List[str]:
         """
-        Extract relevant fields from a ScrapeResult.
+        Get the fields of a result.
 
         Args:
-            result (ScrapeResult): Result object.
+            result (ScrapeResult): Result to get fields from.
 
         Returns:
-            List[str]: List of fields for error formatting.
+            List[str]: List of fields.
         """
         return [
             result.id,
@@ -111,13 +121,13 @@ class ErrorLogger(BaseSaver):
 
     def _format_error(self, result: ScrapeResult) -> str:
         """
-        Format a single error entry as a string.
+        Format an error result as a string.
 
         Args:
-            result (ScrapeResult): Result object containing error.
+            result (ScrapeResult): Result to format.
 
         Returns:
-            str: Formatted string representing the error line.
+            str: Formatted error string.
         """
         fields = self._get_fields(result)
         return " | ".join(self._safe_str(v) for v in fields) + "\n"
