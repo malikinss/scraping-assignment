@@ -1,14 +1,35 @@
 # ./src/services/metrics/deps.py
 
 """
+Metrics Service Dependencies
+============================
+
 This module contains the dependencies for the metrics service.
+It is used to group all the necessary imports for the metrics service.
+
+Key Features:
+    - Pipeline-based metrics calculation
+    - Rate calculation
+    - Latency calculation
+    - Content length calculation
+
+Usage:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
+
+Example:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
 """
 
-import numpy as np
 from dataclasses import dataclass, asdict
 from collections import defaultdict
 from typing import List, Dict, Any, Callable, TypeVar, Tuple, ClassVar
-from src.utils import Logger
+from src.logger import AppLogger
 from src.models import (
     ScrapeResult,
     ScrapeMethod,
@@ -16,11 +37,9 @@ from src.models import (
     ScrapeResults,
     Counts,
     Grouped,
-    K,
 )
 
 __all__ = [
-    "np",
     "asdict",
     "dataclass",
     "List",
@@ -31,12 +50,11 @@ __all__ = [
     "TypeVar",
     "ClassVar",
     "defaultdict",
-    "Logger",
+    "AppLogger",
     "ScrapeResult",
     "ScrapeMethod",
     "ScrapeStatus",
     "ScrapeResults",
     "Counts",
     "Grouped",
-    "K",
 ]

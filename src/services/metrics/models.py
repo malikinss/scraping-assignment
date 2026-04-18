@@ -1,5 +1,31 @@
 # ./src/services/metrics/models.py
 
+"""
+Metrics Service Models
+======================
+
+This module contains the models for the metrics service.
+It is used to group all the necessary imports for the metrics service.
+
+Key Features:
+    - Pipeline-based metrics calculation
+    - Rate calculation
+    - Latency calculation
+    - Content length calculation
+
+Usage:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
+
+Example:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
+"""
+
 from .deps import Dict, Any, dataclass, asdict, ClassVar, Tuple
 
 MetricFieldSpec = Tuple[Tuple[str, str, str], ...]

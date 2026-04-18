@@ -1,50 +1,65 @@
 # ./src/services/metrics/calculator.py
 
+"""
+Metrics Calculator Service
+==========================
+
+This module is responsible for calculating metrics for the scraping process.
+It uses a pipeline approach to calculate metrics for the scraping process.
+
+Key Features:
+    - Pipeline-based metrics calculation
+    - Rate calculation
+    - Latency calculation
+    - Content length calculation
+
+Usage:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
+
+Example:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
+"""
+
 from .deps import (
-    np,
     Dict,
     Tuple,
-    Logger,
     ScrapeStatus,
     ScrapeResults,
     Counts,
 )
 from .models import MetricsSummary
 
-logger = Logger("MetricsCalculator")
 Rates = Dict[str, float]
 
 
 class MetricsCalculator:
     """
-    Computes aggregated metrics from a collection of `ScrapeResult` objects.
-
-    Metrics include:
-        - Total requests
-        - Success/failure rates by status
-        - Average and 95th percentile latency
-        - Average content length
+    This class is responsible for calculating metrics for the scraping process.
     """
 
     @classmethod
     def calculate(cls, results: ScrapeResults) -> MetricsSummary:
         """
-        Calculate summary metrics for a set of scrape results.
+        Calculates metrics for the scraping process.
 
         Args:
-            results (ScrapeResults): A collection of scrape results.
+            results (ScrapeResults): Results of the scraping process.
 
         Returns:
-            MetricsSummary: Object containing calculated metrics.
-
-        Raises:
-            ValueError: If `results` is empty.
+            MetricsSummary: Summary of the scraping process.
         """
-        if not results:
+        total = len(results)
+        if total == 0:
             raise ValueError("No results to calculate metrics")
 
-        total = len(results)
         counted: Counts = results.count_by_status()
+
         rates = cls._calculate_rates(counted, total)
         avg_latency, p95_latency = cls._calculate_latency(results)
         avg_content_length = cls._calculate_content_length(results)
@@ -57,18 +72,21 @@ class MetricsCalculator:
             **rates,
         )
 
+    # ===== RATES =====
+
     @staticmethod
     def _calculate_rates(counted: Counts, total: int) -> Rates:
         """
-        Calculate rate of each scrape status.
+        Calculates rates for each status.
 
         Args:
-            counted (Counts): Mapping of ScrapeStatus -> count.
-            total (int): Total number of scrape results.
+            counted (Counts): Count of each status.
+            total (int): Total number of results.
 
         Returns:
-            Rates: Dictionary of status_rate -> float.
+            Rates: Dictionary of rates for each status.
         """
+
         def rate(status: ScrapeStatus) -> float:
             return counted.get(status, 0) / total
 
@@ -77,32 +95,43 @@ class MetricsCalculator:
             for status in ScrapeStatus
         }
 
+    # ===== LATENCY =====
+
     @staticmethod
     def _calculate_latency(results: ScrapeResults) -> Tuple[float, float]:
         """
-        Calculate average and 95th percentile latency.
+        Calculates latency metrics.
 
         Args:
-            results (ScrapeResults): Collection of scrape results.
+            results (ScrapeResults): Results of the scraping process.
 
         Returns:
-            Tuple[float, float]: Average latency, 95th percentile latency.
+            Tuple[float, float]: Tuple containing average and P95 latency.
         """
         latencies = results.values(lambda r: r.latency)
         if not latencies:
             return 0.0, 0.0
-        return float(np.mean(latencies)), float(np.percentile(latencies, 95))
+
+        latencies_sorted = sorted(latencies)
+        n = len(latencies_sorted)
+
+        avg = sum(latencies_sorted) / n
+        p95 = latencies_sorted[int(n * 0.95) - 1]
+
+        return float(avg), float(p95)
+
+    # ===== CONTENT LENGTH =====
 
     @staticmethod
     def _calculate_content_length(results: ScrapeResults) -> float:
         """
-        Calculate average content length of all results.
+        Calculates content length metrics.
 
         Args:
-            results (ScrapeResults): Collection of scrape results.
+            results (ScrapeResults): Results of the scraping process.
 
         Returns:
-            float: Average content length. Returns 0.0 if no results.
+            float: Average content length.
         """
         values = results.values(lambda r: r.content_length)
         return sum(values) / len(values) if values else 0.0

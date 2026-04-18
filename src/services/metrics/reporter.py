@@ -1,72 +1,106 @@
 # ./src/services/metrics/reporter.py
 
-from .calculator import MetricsCalculator
-from .deps import Logger, ScrapeResults
+"""
+Metrics Reporter Service
+======================
 
-logger = Logger("MetricsReporter")
+This module is responsible for reporting metrics for the scraping process.
+It uses a pipeline approach to report metrics for the scraping process.
+
+Key Features:
+    - Pipeline-based metrics reporting
+    - Total metrics reporting
+    - Metrics by method reporting
+    - Status distribution reporting
+
+Usage:
+    >>> from src.services.metrics import MetricsReporter
+    >>> reporter = MetricsReporter()
+    >>> reporter.report(results)
+
+Example:
+    >>> from src.services.metrics import MetricsReporter
+    >>> reporter = MetricsReporter()
+    >>> reporter.report(results)
+"""
+
+from .calculator import MetricsCalculator
+from .deps import ScrapeResults, AppLogger, Grouped
+
+logger: AppLogger = AppLogger("MetricsReporter")
 
 
 class MetricsReporter:
     """
-    Reports metrics for a collection of scrape results.
-
-    Uses MetricsCalculator to compute metrics and logs them
-    in a structured format.
+    This class is responsible for reporting metrics for the scraping process.
     """
 
     def report(self, results: ScrapeResults) -> None:
         """
-        Entry point for metrics reporting.
+        Reports the metrics for the scraping process.
 
         Args:
-            results (ScrapeResults): Collection of scrape results.
+            results (ScrapeResults): Results of the scraping process.
         """
-        if not results or len(results) == 0:
-            logger.warning("No results provided for metrics reporting.")
+        if not results:
+            logger.metrics.log_no_metrics("ALL")
             return
-
+        logger.core.separator()
         self._report_total(results)
         self._report_by_method(results)
         self._report_status_distribution(results)
 
-    # ===== INTERNAL METHODS =====
+    # ===== REPORTERS =====
 
     def _report_total(self, results: ScrapeResults) -> None:
-        """Log overall metrics for all results."""
-        self._log_metrics("[TOTAL] METRICS", results)
+        """
+        Reports the total metrics for the scraping process.
+
+        Args:
+            results (ScrapeResults): Results of the scraping process.
+        """
+        self._report_group("TOTAL", results)
 
     def _report_by_method(self, results: ScrapeResults) -> None:
         """
-        Log metrics grouped by scraping method.
+        Reports the metrics by method for the scraping process.
+
+        Args:
+            results (ScrapeResults): Results of the scraping process.
         """
-        grouped = results.group_by_method()
+        grouped: Grouped = results.group_by_method()
         if not grouped:
-            logger.info("No methods found for metrics reporting.")
+            logger.metrics.log_no_metrics("METHODS")
             return
 
         for method, group in grouped.items():
-            title = f"[{method.upper()}] METRICS"
-            self._log_metrics(title, group)
+            self._report_group(method, group)
 
     def _report_status_distribution(self, results: ScrapeResults) -> None:
         """
-        Log the count of results per ScrapeStatus.
-        """
-        status_counts = results.count_by_status()
-        logger.info(f"Status distribution: {status_counts}")
-
-    def _log_metrics(self, title: str, results: ScrapeResults) -> None:
-        """
-        Compute metrics and log them under a given title.
+        Reports the status distribution for the scraping process.
 
         Args:
-            title (str): Header for log output.
-            results (ScrapeResults): Collection of results to compute metrics
-                                     on.
+            results (ScrapeResults): Results of the scraping process.
+        """
+        distribution = {
+            status.value.upper(): count
+            for status, count in results.count_by_status().items()
+        }
+        logger.metrics.log_distribution("STATUS", distribution)
+
+    # ===== CORE =====
+
+    def _report_group(self, name: str, results: ScrapeResults) -> None:
+        """
+        Reports the metrics for a group of results.
+
+        Args:
+            name (str): Name of the group.
+            results (ScrapeResults): Results of the scraping process.
         """
         try:
             metrics = MetricsCalculator.calculate(results)
-            logger.info(title)
-            logger.info(str(metrics))
+            logger.metrics.log_metrics(name, metrics)
         except Exception as e:
-            logger.exception(f"Failed to calculate metrics for {title}: {e}")
+            logger.metrics.log_metrics_exception(name, e)

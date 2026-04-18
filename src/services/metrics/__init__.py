@@ -1,15 +1,29 @@
 # ./src/services/metrics/__init__.py
 
 """
-Metrics package
+Metrics Service Package
+=======================
 
-Contains classes and utilities to calculate, summarize,
-and report scraping metrics.
+This module is responsible for metrics for the scraping process.
+It is used to group all the necessary imports for the metrics service.
 
-Exports:
-    - MetricsSummary: Dataclass holding aggregated metrics.
-    - MetricsCalculator: Computes metrics from scrape results.
-    - MetricsReporter: Formats and outputs metrics.
+Key Features:
+    - Pipeline-based metrics calculation
+    - Rate calculation
+    - Latency calculation
+    - Content length calculation
+
+Usage:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
+
+Example:
+    >>> from src.services.metrics import MetricsCalculator
+    >>> calculator = MetricsCalculator()
+    >>> metrics = calculator.calculate(results)
+    >>> print(metrics)
 """
 
 from .models import MetricsSummary
