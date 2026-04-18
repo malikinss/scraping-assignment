@@ -9,26 +9,28 @@ components. It is used to reduce duplication and ensure consistency
 across the logging package.
 
 Exports:
-    logging: Standard Python logging module.
-    re: Regular expression module.
     os: Operating system interface module.
+    re: Regular expression module.
+    logging: Standard Python logging module.
     Optional: Optional type from typing module.
     URLUtils: Utility class for URL formatting and normalization.
     Counts: Typed structure representing aggregated pipeline metrics.
+    ScraperContext: Context object for scraper execution.
 """
 
-import logging
-import re
 import os
+import re
+import logging
 from typing import Optional
 from src.utils.url_utils import URLUtils
-from src.models import Counts
+from src.models import Counts, ScraperContext
 
 __all__ = [
-    "logging",
-    "re",
     "os",
+    "re",
+    "logging",
     "Optional",
     "URLUtils",
-    "Counts"
+    "Counts",
+    "ScraperContext"
 ]
