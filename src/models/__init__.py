@@ -45,6 +45,7 @@ from .enums import ScrapeMethod, ScrapeStatus
 from .scrape_result import ScrapeResult
 from .scrape_results import ScrapeResults, Grouped
 from .common import URL, URLs, Counts
+from .scraper_context import ScraperContext
 
 __all__ = [
     "ScrapeMethod",
@@ -55,4 +56,5 @@ __all__ = [
     "Grouped",
     "URL",
     "URLs",
+    "ScraperContext",
 ]
