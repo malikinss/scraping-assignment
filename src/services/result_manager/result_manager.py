@@ -1,65 +1,81 @@
 # ./src/services/result_manager/result_manager.py
 
-from .deps import Dict, Logger, ScrapeResults
-from .savers import CSVResultSaver
+"""
+ResultManager Class
+===================
 
-logger = Logger("ResultManager")
+This class is responsible for managing and persisting scraping results
+through different output strategies.
+
+This class is used by the PipelineOrchestrator to save the results of the
+scraping process.
+
+Imports:
+    Dict: Dictionary type hint.
+    AppLogger: Logger class for application-wide logging.
+    ScrapeResults: Type hint for scraping results.
+    CSVResultSaver: CSV saver class for saving results to a CSV file.
+    BaseSaver: Base class for all saver classes.
+
+Usage:
+    >>> from src.services.result_manager import ResultManager
+    >>> result_manager = ResultManager("results.csv")
+    >>> result_manager.save_all(results)
+"""
+
+from .deps import Dict, AppLogger, ScrapeResults
+from .savers import CSVResultSaver, BaseSaver as Saver
+
+logger = AppLogger("ResultManager")
 
 Statuses = Dict[str, bool]
+Savers = Dict[str, Saver]
 
 
 class ResultManager:
     """
-    High-level service for managing and coordinating result persistence.
+    ResultManager class.
 
-    The ResultManager acts as an orchestrator for multiple saver strategies
-    (e.g., CSV, JSON, logs). It allows registering different savers and
-    executing them in a unified way while collecting execution statuses.
+    This class is responsible for managing and persisting scraping results
+    through different output strategies.
 
-    Attributes:
-        savers (Dict[str, Any]): Registered saver implementations indexed
-                                 by name.
     """
 
     def __init__(self, file_path: str):
         """
-        Initialize ResultManager with a default CSV saver.
+        Initialize the ResultManager with the given file path.
 
         Args:
-            file_path (str): Base file path used for default CSV saver.
+            file_path (str): The file path to save the results to.
         """
-        self.savers = {
+        self.savers: Savers = {
             "csv": CSVResultSaver(file_path),
         }
 
-    def register_saver(self, name: str, saver) -> None:
+    # ===== REGISTRY =====
+    def register_saver(self, name: str, saver: Saver) -> None:
         """
-        Register a new saver implementation.
-
-        Allows extending output formats dynamically at runtime.
+        Register a new saver with the given name.
 
         Args:
-            name (str): Unique identifier for the saver.
-            saver (Any): Saver instance implementing `save(results)` method.
+            name (str): The name of the saver.
+            saver (Saver): The saver to register.
         """
         self.savers[name] = saver
 
+    # ===== PUBLIC =====
     def save_all(self, results: ScrapeResults) -> Statuses:
         """
-        Execute all registered savers on the provided results.
-
-        Each saver is executed safely, and failures do not interrupt
-        other saver executions. Returns a status map indicating success
-        or failure per saver.
+        Save the given results to all registered savers.
 
         Args:
-            results (ScrapeResults): Collection of scrape results.
+            results (ScrapeResults): The results to save.
 
         Returns:
-            Statuses: Dictionary mapping saver name to success status.
+            Statuses: A dictionary of statuses for each saver.
         """
         if not results:
-            logger.debug("Save skipped: no results")
+            logger.storage.no_results()
             return {}
 
         statuses: Statuses = {
@@ -67,31 +83,28 @@ class ResultManager:
             for name, saver in self.savers.items()
         }
 
-        success_count = sum(statuses.values())
-
-        logger.info(
-            f"Save completed: "
-            f"success={success_count}/{len(statuses)} "
-            f"details={statuses}"
-        )
+        logger.storage.save_success(statuses)
 
         return statuses
 
-    def _safe_save(self, name: str, saver, results: ScrapeResults) -> bool:
+    # ===== CORE =====
+    def _safe_save(
+        self, name: str, saver: Saver, results: ScrapeResults
+    ) -> bool:
         """
-        Safely execute a saver and capture failures.
+        Save the given results to the given saver.
 
         Args:
-            name (str): Saver identifier.
-            saver (Any): Saver instance.
-            results (ScrapeResults): Data to persist.
+            name (str): The name of the saver.
+            saver (Saver): The saver to use.
+            results (ScrapeResults): The results to save.
 
         Returns:
-            bool: True if save succeeded, False otherwise.
+            bool: True if the results were saved successfully, False otherwise.
         """
         try:
             saver.save(results)
             return True
         except Exception as e:
-            logger.error(f"Save failed: target={name} error={e}")
+            logger.storage.save_failure(name, e)
             return False

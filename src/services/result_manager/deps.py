@@ -1,18 +1,15 @@
 # ./src/services/result_manager/deps.py
 
 """
-Shared dependencies for the result manager service.
+Dependencies
+============
 
-This module centralizes commonly used imports for the result manager
-layer to reduce duplication and simplify dependency management across
-the service.
-
-It exposes typing utilities, logging, and core domain models required
-for processing and aggregating scrape results.
+This module contains the dependencies for the result_manager package.
+It is used by all the other modules in the result_manager package.
 """
 
 from typing import Dict
-from src.utils import Logger
+from src.logger import AppLogger
 from src.models import ScrapeResults
 
-__all__ = ["Dict", "Logger", "ScrapeResults"]
+__all__ = ["Dict", "AppLogger", "ScrapeResults"]

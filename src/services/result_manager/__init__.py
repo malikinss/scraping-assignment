@@ -1,13 +1,23 @@
 # ./src/services/result_manager/__init__.py
 
 """
-Result Manager service package.
+Result Manager Service Package
+============================
 
-This package provides a high-level interface for managing and persisting
-scraping results through different output strategies (CSV, JSON, error logs).
+This package provides an interface for managing and persisting scraping results
+through different output strategies.
 
-The main entry point is `ResultManager`, which orchestrates multiple
-savers and coordinates saving results in different formats.
+This package is used by the PipelineOrchestrator to save the results of the
+scraping process.
+
+Imports:
+    ResultManager: Main entry point for managing and persisting scraping
+                   results.
+
+Usage:
+    >>> from src.services.result_manager import ResultManager
+    >>> result_manager = ResultManager()
+    >>> result_manager.save(results)
 """
 
 from .result_manager import ResultManager
