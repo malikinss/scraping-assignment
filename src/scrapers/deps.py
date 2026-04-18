@@ -12,7 +12,8 @@ This module centralizes commonly used imports to:
 # ===== STANDARD LIB =====
 import asyncio
 import time
-from typing import Optional, Callable
+from typing import Optional, Callable, AsyncGenerator
+from contextlib import asynccontextmanager
 
 # ===== THIRD-PARTY =====
 import httpx
@@ -26,15 +27,18 @@ from playwright.async_api import (
 )
 
 # ===== INTERNAL =====
-from src.utils import Logger, URLUtils
-from src.services import detector, URL, URLs
-from src.config.settings import settings
-from src.config.proxy import proxy_manager
+from src.logger import AppLogger
+from src.utils import URLUtils
+from src.services import detector
+from src.config import settings, proxy_manager
 from src.models import (
     ScrapeMethod,
     ScrapeResult,
     ScrapeStatus,
     ScrapeResults,
+    ScraperContext,
+    URL,
+    URLs,
 )
 
 # ===== EXPLICIT EXPORTS =====
@@ -44,6 +48,8 @@ __all__ = [
     "time",
     "Optional",
     "Callable",
+    "AsyncGenerator",
+    "asynccontextmanager",
 
     # third-party
     "httpx",
@@ -55,7 +61,7 @@ __all__ = [
     "TimeoutError",
 
     # internal
-    "Logger",
+    "AppLogger",
     "URLUtils",
     "detector",
     "settings",
@@ -64,6 +70,7 @@ __all__ = [
     "ScrapeResult",
     "ScrapeStatus",
     "ScrapeResults",
+    "ScraperContext",
     "URLs",
     "URL",
 ]
