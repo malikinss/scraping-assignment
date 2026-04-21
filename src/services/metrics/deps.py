@@ -28,7 +28,16 @@ Example:
 
 from dataclasses import dataclass, asdict
 from collections import defaultdict
-from typing import List, Dict, Any, Callable, TypeVar, Tuple, ClassVar
+from typing import (
+    List,
+    Dict,
+    Any,
+    Callable,
+    TypeVar,
+    Tuple,
+    ClassVar,
+    Optional,
+)
 from src.logger import AppLogger
 from src.models import (
     ScrapeResult,
@@ -50,6 +59,7 @@ __all__ = [
     "TypeVar",
     "ClassVar",
     "defaultdict",
+    "Optional",
     "AppLogger",
     "ScrapeResult",
     "ScrapeMethod",
