@@ -37,13 +37,19 @@ Usage:
 from .content_detector import detector
 from .input_loader import URLInputLoader
 from .result_manager import ResultManager
-from .metrics import MetricsCalculator, MetricsSummary, MetricsReporter
-
-__all__ = [
-    detector,
-    ResultManager,
-    URLInputLoader,
+from .metrics import (
     MetricsCalculator,
     MetricsSummary,
-    MetricsReporter
+    MetricsReporter,
+    MetricsAggregator
+)
+
+__all__ = [
+    "detector",
+    "ResultManager",
+    "URLInputLoader",
+    "MetricsCalculator",
+    "MetricsSummary",
+    "MetricsReporter",
+    "MetricsAggregator"
 ]
