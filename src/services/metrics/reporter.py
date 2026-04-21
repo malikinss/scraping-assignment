@@ -24,8 +24,13 @@ Example:
     >>> reporter.report(results)
 """
 
-from .calculator import MetricsCalculator
-from .deps import ScrapeResults, AppLogger, Grouped
+from .models import MetricsSummary
+from .aggregator import (
+    MetricsAggregator,
+    GroupedMetrics,
+    Distribution
+)
+from .deps import ScrapeResults, AppLogger
 
 logger: AppLogger = AppLogger("MetricsReporter")
 
@@ -59,7 +64,8 @@ class MetricsReporter:
         Args:
             results (ScrapeResults): Results of the scraping process.
         """
-        self._report_group("TOTAL", results)
+        metrics: MetricsSummary = MetricsAggregator.metrics(results)
+        logger.metrics.log_metrics("TOTAL", metrics)
 
     def _report_by_method(self, results: ScrapeResults) -> None:
         """
@@ -68,13 +74,9 @@ class MetricsReporter:
         Args:
             results (ScrapeResults): Results of the scraping process.
         """
-        grouped: Grouped = results.group_by_method()
-        if not grouped:
-            logger.metrics.log_no_metrics("METHODS")
-            return
-
-        for method, group in grouped.items():
-            self._report_group(method, group)
+        metrics: GroupedMetrics = MetricsAggregator.per_method(results)
+        for method, metric in metrics.items():
+            logger.metrics.log_metrics(method, metric)
 
     def _report_status_distribution(self, results: ScrapeResults) -> None:
         """
@@ -83,10 +85,8 @@ class MetricsReporter:
         Args:
             results (ScrapeResults): Results of the scraping process.
         """
-        distribution = {
-            status.value.upper(): count
-            for status, count in results.count_by_status().items()
-        }
+        distribution: Distribution = MetricsAggregator.status_distribution(
+            results)
         logger.metrics.log_distribution("STATUS", distribution)
 
     # ===== CORE =====
@@ -100,7 +100,7 @@ class MetricsReporter:
             results (ScrapeResults): Results of the scraping process.
         """
         try:
-            metrics = MetricsCalculator.calculate(results)
+            metrics = MetricsAggregator.metrics(results)
             logger.metrics.log_metrics(name, metrics)
         except Exception as e:
             logger.metrics.log_metrics_exception(name, e)
