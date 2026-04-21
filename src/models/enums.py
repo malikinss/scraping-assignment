@@ -114,6 +114,24 @@ class ScrapeStatus(str, Enum):
         """
         return self in self.content_statuses()
 
+    # ===== FAST LOOKUP MAP =====
+
+    @classmethod
+    def from_name(cls, name: str) -> "ScrapeStatus":
+        MAP = {
+            "success": cls.SUCCESS,
+            "failed": cls.FAILED,
+            "timeout": cls.TIMEOUT,
+            "captcha": cls.CAPTCHA,
+            "blocked": cls.BLOCKED,
+            "empty": cls.EMPTY,
+            "pdf": cls.PDF,
+            "image": cls.IMAGE,
+            "video": cls.VIDEO,
+            "audio": cls.AUDIO,
+        }
+        return MAP.get(name.lower(), cls.FAILED)
+
 
 class ScrapeMethod(str, Enum):
     """
@@ -135,3 +153,30 @@ class ScrapeMethod(str, Enum):
             ScrapeMethod: Default method used for scraping.
         """
         return cls.HTTPX
+
+    @classmethod
+    def from_name(cls, name: str) -> "ScrapeMethod":
+        """
+        Convert a string to a ScrapeMethod.
+
+        Args:
+            name: String to convert
+
+        Returns:
+            ScrapeMethod: Converted ScrapeMethod
+        """
+        _ALIAS_MAP = {
+            "http": cls.HTTPX,
+            "httpx": cls.HTTPX,
+            "requests": cls.HTTPX,
+            "browser": cls.PLAYWRIGHT,
+            "playwright": cls.PLAYWRIGHT,
+            "chromium": cls.PLAYWRIGHT,
+        }
+
+        if not name:
+            return cls.default()
+
+        normalized = name.strip().lower()
+
+        return _ALIAS_MAP.get(normalized, cls.default())
