@@ -1,29 +1,23 @@
 # ./src/services/metrics/models.py
-
 """
-Metrics Service Models
-======================
+Metrics Models
 
-This module contains the models for the metrics service.
-It is used to group all the necessary imports for the metrics service.
+This module provides data structures for storing and representing metrics
+of scrape results.
 
-Key Features:
-    - Pipeline-based metrics calculation
-    - Rate calculation
-    - Latency calculation
-    - Content length calculation
+It defines:
+    - MetricsSummary: A dataclass to hold aggregated statistics for a set of
+    scrape results.
+    - MetricFieldSpec: A type alias for specifying metric field configurations.
 
-Usage:
-    >>> from src.services.metrics import MetricsCalculator
-    >>> calculator = MetricsCalculator()
-    >>> metrics = calculator.calculate(results)
-    >>> print(metrics)
+The metrics calculated include:
+    - Overall request statistics (success, failure, blocked, empty, etc.)
+    - Latency metrics (average and 95th percentile)
+    - Content length metrics
+    - Specific content type rates (PDF, image, video, etc.)
 
-Example:
-    >>> from src.services.metrics import MetricsCalculator
-    >>> calculator = MetricsCalculator()
-    >>> metrics = calculator.calculate(results)
-    >>> print(metrics)
+These metrics can be aggregated per scraping method using the
+MetricsAggregator.
 """
 
 from .deps import Dict, Any, dataclass, asdict, ClassVar, Tuple
