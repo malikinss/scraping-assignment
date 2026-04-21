@@ -14,20 +14,20 @@ Key Features:
     - Content length calculation
 
 Usage:
-    >>> from src.services.metrics import MetricsCalculator
-    >>> calculator = MetricsCalculator()
-    >>> metrics = calculator.calculate(results)
-    >>> print(metrics)
-
-Example:
-    >>> from src.services.metrics import MetricsCalculator
-    >>> calculator = MetricsCalculator()
-    >>> metrics = calculator.calculate(results)
+    >>> from src.services.metrics import MetricsAggregator
+    >>> aggregator = MetricsAggregator()
+    >>> metrics = aggregator.metrics(results)
     >>> print(metrics)
 """
 
 from .models import MetricsSummary
-from .calculator import MetricsCalculator
 from .reporter import MetricsReporter
+from .calculator import MetricsCalculator
+from .aggregator import MetricsAggregator
 
-__all__ = ["MetricsSummary", "MetricsCalculator", "MetricsReporter"]
+__all__ = [
+    "MetricsSummary",
+    "MetricsCalculator",
+    "MetricsReporter",
+    "MetricsAggregator"
+]
