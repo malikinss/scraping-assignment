@@ -181,3 +181,27 @@ class ScrapeResult:
             bool: True if content is available and valid.
         """
         return self.status.is_content
+
+    # ===== DATAFRAME CONVERSION =====
+
+    @classmethod
+    def from_row(cls, row: dict) -> "ScrapeResult":
+        """
+        Convert a row dictionary into a ScrapeResult object.
+
+        Args:
+            row: Dictionary containing scrape result data
+
+        Returns:
+            ScrapeResult: Converted ScrapeResult object
+        """
+        return cls(
+            id=int(row.get("id") or 0),
+            url=str(row.get("url") or ""),
+            method=ScrapeMethod.from_name(row.get("method") or "httpx"),
+            status=ScrapeStatus.from_name(row.get("status") or "failed"),
+            latency=float(row.get("latency") or 0.0),
+            content_length=int(row.get("content_length") or 0),
+            error=str(row.get("error") or ""),
+            content=str(row.get("content") or ""),
+        )
