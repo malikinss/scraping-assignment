@@ -81,10 +81,12 @@ class HTTPScraper:
             timeout (float): The timeout for HTTP requests.
             retries (int): The number of retries for HTTP requests.
             proxy (Optional[str]): The proxy for HTTP requests.
+            client (Optional[Client]): The HTTP client.
         """
         self.timeout: float = settings.http_timeout
         self.retries: int = settings.retries
         self.proxy: Optional[str] = self._init_proxy()
+        self.client: Optional[Client] = None
 
     def _init_proxy(self) -> Optional[str]:
         """
@@ -104,14 +106,11 @@ class HTTPScraper:
 
     # ===== CLIENT =====
 
-    def _build_client(self) -> Client:
+    def _build_client(self):
         """
-        Builds an HTTP client.
-
-        Returns:
-            Client: An HTTP client instance.
+        Builds an HTTP client with retry logic
         """
-        return Client(
+        self.client = Client(
             timeout=self.timeout,
             headers={
                 "User-Agent": settings.user_agent,
@@ -124,18 +123,17 @@ class HTTPScraper:
     # ===== CORE REQUEST =====
 
     async def _request_with_retry(
-        self, client: Client, base_ctx: ScraperContext
-    ) -> Optional[Response]:
+            self, base_ctx: ScraperContext) -> Optional[Response]:
         """
         Requests a URL with retry logic.
 
         Args:
-            client (Client): The HTTP client.
             base_ctx (ScraperContext): The base scraper context.
 
         Returns:
             Optional[Response]: The response from the request.
         """
+        self._build_client()
 
         for attempt in range(1, base_ctx.retries + 1):
             ctx: ScraperContext = base_ctx.with_updates(attempt=attempt)
@@ -143,7 +141,7 @@ class HTTPScraper:
             self._start_or_retry(ctx)
 
             try:
-                response = await client.get(ctx.url)
+                response = await self.client.get(ctx.url)
 
                 if self._is_success(response):
                     logger.scraper.success(ctx)
@@ -252,8 +250,7 @@ class HTTPScraper:
         )
 
         try:
-            async with self._build_client() as client:
-                response = await self._request_with_retry(client, base_ctx)
+            response = await self._request_with_retry(base_ctx)
 
             if response is None:
                 return builder.failure(base_ctx, "No response")
