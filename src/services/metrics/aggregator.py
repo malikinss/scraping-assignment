@@ -31,6 +31,7 @@ KeyFn = Callable[[ScrapeResult], K]
 FormatterFn = Callable[[K], str]
 
 GroupedMetrics = dict[str, MetricsSummary]
+NonZeroMetrics = dict[str, int]
 
 
 class MetricsAggregator:
@@ -59,12 +60,16 @@ class MetricsAggregator:
         return MetricsCalculator.calculate(results)
 
     @staticmethod
-    def per_method(results: ScrapeResults) -> GroupedMetrics:
+    def per_method(
+        results: ScrapeResults,
+        exclude_zero: bool = False
+    ) -> GroupedMetrics:
         """
         Calculate metrics per method.
 
         Args:
             results: Scrape results
+            exclude_zero: Whether to exclude zero metrics
 
         Returns:
             Metrics grouped by method
@@ -72,23 +77,33 @@ class MetricsAggregator:
         MetricsAggregator._ensure_results(results)
         grouped: Grouped = results.group_by_method()
         return {
-            method: MetricsAggregator.metrics(group)
+            method: MetricsAggregator.to_dict(
+                MetricsAggregator.metrics(group),
+                exclude_zero
+            )
             for method, group in grouped.items()
         }
 
     @staticmethod
-    def status_distribution(results: ScrapeResults) -> Distribution:
+    def status_distribution(
+        results: ScrapeResults,
+        exclude_zero: bool = False
+    ) -> Distribution:
         """
         Calculate status distribution.
 
         Args:
             results: Scrape results
+            exclude_zero: Whether to exclude zero metrics
 
         Returns:
             Distribution
         """
         return MetricsAggregator.distribution(
-            results, lambda r: r.status, lambda s: s.value.upper()
+            results,
+            lambda r: r.status,
+            lambda s: s.upper(),
+            exclude_zero
         )
 
     @staticmethod
@@ -109,7 +124,8 @@ class MetricsAggregator:
     def distribution(
         results: ScrapeResults,
         key_fn: KeyFn,
-        formatter: Optional[FormatterFn] = None
+        formatter: Optional[FormatterFn] = None,
+        exclude_zero: bool = False
     ) -> Distribution:
         """
         Calculate distribution.
@@ -118,13 +134,34 @@ class MetricsAggregator:
             results: Scrape results
             key_fn: Key function
             formatter: Formatter function
+            exclude_zero: Whether to exclude zero counts
 
         Returns:
             Distribution
         """
         res = results.count(key_fn)
 
+        if exclude_zero:
+            res = {k: v for k, v in res.items() if v > 0}
+
         if formatter:
-            res = {formatter(k): v for k, v in res.items()}
+            return {formatter(k): v for k, v in res.items()}
 
         return res
+
+    @staticmethod
+    def to_dict(
+        metrics: MetricsSummary,
+        exclude_zero: bool = False
+    ) -> NonZeroMetrics:
+        """
+        Convert metrics to dictionary.
+
+        Args:
+            metrics: Metrics summary
+            exclude_zero: Whether to exclude zero metrics
+
+        Returns:
+            Dictionary
+        """
+        return metrics.to_dict(exclude_zero=exclude_zero)
