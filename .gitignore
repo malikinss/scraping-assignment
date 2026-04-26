@@ -16,21 +16,10 @@ results.error
 
 
 # temprorary mds
-solution.md
-tmp.md
-task.md
-src.md
-structure.md
+src/*/*/*/*.md
+src/*/*/*.md
+src/*/*.md
+src/*.md
 
-config.md
-models.md
-pipeline.md
-scrapers.md
-content_detector.md
-input_loader.md
-metrics.md
-savers.md
-result_manager.md
-services.md
-utils.md
-logger.md
+structure.md
+task.md
