@@ -14,7 +14,6 @@ class JSONResultSaver(BaseSaver):
         self.pretty: bool = pretty
 
     # ===== PUBLIC =====
-
     def save(self, results: ScrapeResults) -> None:
         if not results:
             logger.storage.no_results("JSON", str(self.file_path))

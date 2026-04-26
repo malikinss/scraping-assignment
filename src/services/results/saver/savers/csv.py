@@ -9,8 +9,6 @@ from .deps import (
     AppLogger,
     ScrapeResults
 )
-
-
 logger = AppLogger("CSVSaver")
 
 
@@ -31,7 +29,6 @@ class CSVResultSaver(BaseSaver):
         self.append: bool = append
 
     # ===== PUBLIC =====
-
     def save(self, results: ScrapeResults) -> None:
         if not results:
             logger.storage.no_results("CSV", str(self.file_path))
@@ -51,7 +48,6 @@ class CSVResultSaver(BaseSaver):
         )
 
     # ===== CORE WRITER =====
-
     def _write_csv(self, f, results: ScrapeResults) -> None:
         writer = csv.DictWriter(f, fieldnames=self.FIELDNAMES)
 

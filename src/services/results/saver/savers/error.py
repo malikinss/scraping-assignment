@@ -10,7 +10,6 @@ from .deps import (
     ScrapeResults,
     IO
 )
-
 logger = AppLogger("ErrorSaver")
 
 
@@ -20,7 +19,6 @@ class ErrorSaver(BaseSaver):
         self.file_path: Path = Path(file_path)
 
     # ===== PUBLIC =====
-
     def save(self, results: ScrapeResults) -> None:
         if not results:
             logger.storage.no_results("Error", str(self.file_path))
@@ -44,12 +42,10 @@ class ErrorSaver(BaseSaver):
         )
 
     # ===== CORE =====
-
     def _writer(self, file: IO[str], errors: ScrapeResults) -> None:
         file.writelines(self._format_error(r) for r in errors)
 
     # ===== INTERNAL HELPERS =====
-
     def _safe_str(self, value: Any) -> str:
         return str(value) if value is not None else "-"
 

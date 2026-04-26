@@ -1,8 +1,14 @@
 # ./src/services/results/saver/savers/base.py
 
-from .deps import (Path, AppLogger, ABC, abstractmethod,
-                   Callable, Any, ScrapeResults)
-
+from .deps import (
+    Path,
+    AppLogger,
+    ABC,
+    abstractmethod,
+    Callable,
+    Any,
+    ScrapeResults
+)
 WriterFunc = Callable[[Any], None]
 logger = AppLogger("BaseSaver")
 
