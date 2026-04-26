@@ -22,7 +22,8 @@ __all__ = ["BrowserSettings", "HTTPXSettings"]
 
 ```py
 # ./src/config/settings/subsettings/scrapers/browser.py
-from .deps import dataclass, Proxy, proxy_manager, get_env
+from .deps import dataclass, Proxy, ProxyManager, get_env
+
 
 @dataclass
 class BrowserSettings:
@@ -33,16 +34,16 @@ class BrowserSettings:
     proxy: Proxy = None
 
     def __post_init__(self) -> None:
-        self.proxy = self._proxy()
         self._validate()
 
     @classmethod
-    def from_env(cls) -> "BrowserSettings":
+    def from_env(cls, proxy_manager: ProxyManager) -> "BrowserSettings":
         return cls(
             timeout=get_env("BROWSER_TIMEOUT", cls.timeout, float),
             locale=get_env("BROWSER_LOCALE", cls.locale, str),
             state=get_env("BROWSER_STATE", cls.state, str),
-            headless=get_env("BROWSER_HEADLESS", cls.headless, bool)
+            headless=get_env("BROWSER_HEADLESS", cls.headless, bool),
+            proxy=proxy_manager.get_playwright_proxy(),
         )
 
     # ===== INTERNAL =====
@@ -56,25 +57,18 @@ class BrowserSettings:
                 "Browser state must be 'load', 'domcontentloaded', "
                 "or 'networkidle'"
             )
-
-    def _proxy(self) -> Proxy:
-        return proxy_manager.get_proxy("browser")
 ```
 
 ```py
 # ./src/config/settings/subsettings/scrapers/deps.py
-from src.config.settings.subsettings import FilesSettings
-from src.config.settings.subsettings.deps import (
-    dataclass, Optional, ProxyManager, Path, get_env
-)
+from src.config.settings.subsettings.deps import (dataclass, Optional, get_env, ProxyManager)
 Proxy = Optional[dict | str]
-proxy_manager = ProxyManager.from_file(Path(FilesSettings.proxy))
-__all__ = ["dataclass", "Optional", "proxy_manager", "get_env", "Proxy"]
+__all__ = ["dataclass", "Optional", "get_env", "Proxy", "ProxyManager"]
 ```
 
 ```py
 # ./src/config/settings/subsettings/scrapers/httpx.py
-from .deps import dataclass, Proxy, proxy_manager, get_env
+from .deps import dataclass, Proxy, ProxyManager, get_env
 
 @dataclass
 class HTTPXSettings:
@@ -88,11 +82,11 @@ class HTTPXSettings:
     proxy: Proxy = None
 
     def __post_init__(self) -> None:
-        self.proxy = self._proxy()
         self._validate()
 
     @classmethod
-    def from_env(cls) -> "HTTPXSettings":
+    def from_env(cls, proxy_manager: ProxyManager) -> "HTTPXSettings":
+        protocol = get_env("HTTPX_PROTOCOL", cls.protocol, str)
         return cls(
             timeout=get_env("HTTPX_TIMEOUT", cls.timeout, float),
             retries=get_env("HTTPX_RETRIES", cls.retries, int),
@@ -101,7 +95,8 @@ class HTTPXSettings:
             redirects=get_env("HTTPX_REDIRECTS", cls.redirects, bool),
             max_concurrency=get_env(
                 "HTTPX_MAX_CONCURRENCY", cls.max_concurrency, int),
-            protocol=get_env("HTTPX_PROTOCOL", cls.protocol, str),
+            protocol=protocol,
+            proxy=proxy_manager.get_httpx_proxy().get(protocol),
         )
 
     # ===== INTERNAL =====
@@ -120,7 +115,4 @@ class HTTPXSettings:
             raise ValueError("HTTPX max concurrency must be positive")
         if self.protocol not in ["http://", "https://"]:
             raise ValueError("HTTPX protocol must be 'http://' or 'https://'")
-
-    def _proxy(self) -> Proxy:
-        return proxy_manager.get_proxy("http")
 ```

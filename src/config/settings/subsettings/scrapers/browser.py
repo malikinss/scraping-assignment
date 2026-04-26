@@ -1,5 +1,5 @@
 # ./src/config/settings/subsettings/scrapers/browser.py
-from .deps import dataclass, Proxy, proxy_manager, get_env
+from .deps import dataclass, Proxy, ProxyManager, get_env
 
 
 @dataclass
@@ -11,16 +11,16 @@ class BrowserSettings:
     proxy: Proxy = None
 
     def __post_init__(self) -> None:
-        self.proxy = self._proxy()
         self._validate()
 
     @classmethod
-    def from_env(cls) -> "BrowserSettings":
+    def from_env(cls, proxy_manager: ProxyManager) -> "BrowserSettings":
         return cls(
             timeout=get_env("BROWSER_TIMEOUT", cls.timeout, float),
             locale=get_env("BROWSER_LOCALE", cls.locale, str),
             state=get_env("BROWSER_STATE", cls.state, str),
-            headless=get_env("BROWSER_HEADLESS", cls.headless, bool)
+            headless=get_env("BROWSER_HEADLESS", cls.headless, bool),
+            proxy=proxy_manager.get_playwright_proxy(),
         )
 
     # ===== INTERNAL =====
@@ -34,6 +34,3 @@ class BrowserSettings:
                 "Browser state must be 'load', 'domcontentloaded', "
                 "or 'networkidle'"
             )
-
-    def _proxy(self) -> Proxy:
-        return proxy_manager.get_proxy("browser")
