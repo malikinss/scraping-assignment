@@ -6,7 +6,7 @@ from .deps import (
     ScrapeResult,
     CTX,
     URL,
-    ResultBuilder,
+    RFactory,
     logger,
     Content,
     METHOD,
@@ -35,7 +35,7 @@ class BrowserScraper:
     # ===== CORE =====
     async def fetch(self, id: int, url: URL) -> ScrapeResult:
         ctx: CTX = CTX(id=id, method=METHOD, url=url, timeout=self.timeout)
-        builder: ResultBuilder = ResultBuilder()
+        factory: RFactory = RFactory()
         logger.scraper.start(ctx)
 
         try:
@@ -43,15 +43,15 @@ class BrowserScraper:
                 content: Content = await self._get_content(ctx, page)
 
             if content is None:
-                return builder.empty(ctx)
+                return factory.empty(ctx)
 
-            return builder.process(ctx, content)
+            return factory.process(ctx, content)
 
         except TimeoutError:
-            return builder.timeout(ctx)
+            return factory.timeout(ctx)
 
         except Exception as e:
-            return builder.failure(ctx, str(e))
+            return factory.failure(ctx, str(e))
 
     # ===== PAGE PROCESSING =====
     async def _get_content(self, ctx: CTX, page: Page) -> Content:

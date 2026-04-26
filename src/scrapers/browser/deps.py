@@ -1,7 +1,6 @@
 # ./src/scrapers/browser/deps.py
 
 # ===== STANDARD LIB =====
-from typing import Optional, AsyncGenerator
 from contextlib import asynccontextmanager
 
 # ===== THIRD PARTY =====
@@ -14,19 +13,23 @@ from playwright.async_api import (
     TimeoutError,
 )
 
-# ===== INTERNAL =====
-from src.config import settings
-from src.logger import AppLogger
-from src.models import ScrapeMethod, ScrapeResult, ScraperContext, URL
-from src.scrapers.result_builder import ResultBuilder
+# ===== COMMON SCRAPER DEPS =====
+from src.scrapers.deps import (
+    Optional,
+    AsyncGenerator,
+    settings,
+    AppLogger,
+    ScrapeMethod,
+    ScrapeResult,
+    CTX,
+    URL,
+    RFactory
+)
 
 # ===== BROWSER SCRAPER =====
 Content = Optional[str]
-METHOD = ScrapeMethod.BROWSER
+METHOD = ScrapeMethod.PLAYWRIGHT
 logger = AppLogger(METHOD.value)
-
-# ===== TYPE ALIASES =====
-CTX = ScraperContext
 
 # ===== EXPLICIT EXPORTS =====
 __all__ = [
@@ -43,7 +46,7 @@ __all__ = [
     "ScrapeResult",
     "CTX",
     "URL",
-    "ResultBuilder",
+    "RFactory",
     "Content",
     "METHOD",
     "logger",
