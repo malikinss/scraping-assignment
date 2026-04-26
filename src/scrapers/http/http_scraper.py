@@ -10,7 +10,7 @@ from .deps import (
     Response,
     METHOD,
     logger,
-    ResultBuilder,
+    RFactory,
     TimeoutException,
     RequestError
 )
@@ -83,7 +83,7 @@ class HTTPScraper:
     # ===== PUBLIC API =====
 
     async def fetch(self, id: int, url: URL) -> ScrapeResult:
-        builder: ResultBuilder = ResultBuilder()
+        factory: RFactory = RFactory()
         base_ctx: CTX = CTX(
             id=id,
             method=METHOD,
@@ -96,15 +96,15 @@ class HTTPScraper:
             response = await self._request_with_retry(base_ctx)
 
             if response is None:
-                return builder.failure(base_ctx, "No response")
+                return factory.failure(base_ctx, "No response")
 
             if self._is_pdf(response):
-                return builder.pdf(base_ctx)
+                return factory.pdf(base_ctx)
 
-            return builder.process(base_ctx, response.text)
+            return factory.process(base_ctx, response.text)
 
         except TimeoutException:
-            return builder.timeout(base_ctx)
+            return factory.timeout(base_ctx)
 
         except Exception as e:
-            return builder.failure(base_ctx, str(e))
+            return factory.failure(base_ctx, str(e))
