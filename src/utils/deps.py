@@ -1,13 +1,18 @@
 # ./src/utils/deps.py
 
-"""
-Dependencies for the utils module.
-
-This module is used to import dependencies for the utils module.
-"""
-
-from urllib.parse import urlparse
+# ===== STD LIB =====
+import os
 from typing import NamedTuple
-from src.models import URL, URLs
+from dotenv import load_dotenv
+from urllib.parse import urlparse
 
-__all__ = ["urlparse", "URL", "URLs", "NamedTuple"]
+# ===== INTERNAL =====
+from src.models import URL
+
+__all__ = [
+    "os",
+    "NamedTuple",
+    "load_dotenv",
+    "urlparse",
+    "URL"
+]
