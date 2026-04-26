@@ -27,7 +27,12 @@ class SaverManager:
         return statuses
 
     # ===== CORE =====
-    def _safe_save(self, name: str, saver: Saver, results: ScrapeResults) -> bool:
+    def _safe_save(
+        self,
+        name: str,
+        saver: Saver,
+        results: ScrapeResults
+    ) -> bool:
         try:
             saver.save(results)
             return True
