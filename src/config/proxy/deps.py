@@ -2,13 +2,14 @@
 
 # ===== STD LIB =====
 import json
-from pathlib import Path
-from typing import Optional
-from dataclasses import dataclass
-
 
 # ===== INTERNAL =====
-from src.logger import AppLogger
+from src.config.deps import (
+    Path,
+    Optional,
+    AppLogger,
+    dataclass
+)
 
 # ===== ALIASES =====
 logger = AppLogger("Proxy")
