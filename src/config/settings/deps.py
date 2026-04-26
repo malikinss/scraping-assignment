@@ -2,17 +2,19 @@
 
 # ===== STD LIB =====
 import os
-from pathlib import Path
-from typing import Optional
 
 # ===== EXTERNAL =====
 from dotenv import load_dotenv
-from dataclasses import dataclass
 
 # ===== INTERNAL =====
 from src.utils import get_env
-from src.logger import AppLogger
 from src.config.proxy import ProxyManager
+from src.config.deps import (
+    Path,
+    Optional,
+    AppLogger,
+    dataclass
+)
 
 # ===== PUBLIC =====
 logger = AppLogger("Settings")

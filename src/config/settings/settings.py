@@ -1,6 +1,6 @@
 # ./src/config/settings/settings.py
 
-from .deps import dataclass, logger
+from .deps import dataclass, logger, Path, ProxyManager
 from .subsettings import (
     FilesSettings,
     HTTPXSettings,
@@ -17,15 +17,7 @@ class Settings:
     user_agent: UserAgentSettings
 
     def __post_init__(self) -> None:
-        self._validate()
         self._log()
-
-    # ===== INTERNAL =====
-    def _validate(self) -> None:
-        self.files._validate()
-        self.httpx._validate()
-        self.browser._validate()
-        self.user_agent._validate()
 
     def _log(self) -> None:
         logger.pipeline.settings(
@@ -38,9 +30,11 @@ class Settings:
     # ===== PUBLIC =====
     @classmethod
     def from_env(cls):
+        files = FilesSettings.from_env()
+        proxy_manager = ProxyManager.from_file(Path(files.proxy))
         return cls(
-            files=FilesSettings.from_env(),
-            httpx=HTTPXSettings.from_env(),
-            browser=BrowserSettings.from_env(),
-            user_agent=UserAgentSettings.from_env()
+            files=files,
+            httpx=HTTPXSettings.from_env(proxy_manager),
+            browser=BrowserSettings.from_env(proxy_manager),
+            user_agent=UserAgentSettings.from_env(),
         )
