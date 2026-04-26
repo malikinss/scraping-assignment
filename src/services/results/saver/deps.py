@@ -1,5 +1,10 @@
 # ./src/services/results/saver/deps.py
-from typing import Dict
-from src.logger import AppLogger
-from src.models import ScrapeResult, ScrapeResults
+
+# ===== INTERNAL =====
+from src.services.results.deps import (
+    Dict,
+    AppLogger,
+    ScrapeResult,
+    ScrapeResults
+)
 __all__ = ["Dict", "AppLogger", "ScrapeResult", "ScrapeResults"]

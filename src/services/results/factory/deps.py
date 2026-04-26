@@ -2,12 +2,17 @@
 
 # ===== STANDARD LIB =====
 import time
-from typing import Optional, Callable
 
 # ===== INTERNAL =====
-from src.logger import AppLogger
 from src.services import detector
-from src.models import ScrapeResult, ScrapeStatus, ScraperContext
+from src.services.results.deps import (
+    Optional,
+    Callable,
+    AppLogger,
+    ScrapeResult,
+    ScrapeStatus,
+    ScraperContext
+)
 
 # ===== LOGGER =====
 logger = AppLogger("ResFactory")
