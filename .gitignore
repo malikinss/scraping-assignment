@@ -16,6 +16,9 @@ results.error
 
 
 # temprorary mds
+src/*/*/*/*/*/*/*/*/*/*/*.md
+src/*/*/*/*/*/*/*/*/*.md
+src/*/*/*/*/*/*/*/*.md
 src/*/*/*/*/*/*.md
 src/*/*/*/*/*.md
 src/*/*/*/*.md

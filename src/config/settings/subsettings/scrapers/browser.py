@@ -9,6 +9,7 @@ class BrowserSettings:
     state: str = "networkidle"
     headless: bool = True
     proxy: Proxy = None
+    max_concurrency: int = 50
 
     def __post_init__(self) -> None:
         self._validate()
@@ -20,6 +21,8 @@ class BrowserSettings:
             locale=get_env("BROWSER_LOCALE", cls.locale, str),
             state=get_env("BROWSER_STATE", cls.state, str),
             headless=get_env("BROWSER_HEADLESS", cls.headless, bool),
+            max_concurrency=get_env(
+                "BROWSER_MAX_CONCURRENCY", cls.max_concurrency, int),
             proxy=proxy_manager.get_playwright_proxy(),
         )
 
@@ -34,3 +37,5 @@ class BrowserSettings:
                 "Browser state must be 'load', 'domcontentloaded', "
                 "or 'networkidle'"
             )
+        if self.max_concurrency <= 0:
+            raise ValueError("Browser max concurrency must be positive")
