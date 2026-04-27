@@ -1,23 +1,15 @@
 # ./src/models/scrape/results.py
 from .result import ScrapeResult
+from .subtypes import K, Predicate, KeyFn, Grouped, TransformFn
 from .deps import (
     List,
     pd,
     Optional,
-    Callable,
-    Dict,
     defaultdict,
     Iterable,
     Iterator,
-    TypeVar,
     Counts
 )
-
-K = TypeVar("K")
-Predicate = Callable[[ScrapeResult], bool]
-KeyFn = Callable[[ScrapeResult], K]
-Grouped = Dict[K, 'ScrapeResults']
-TransformFn = Callable[[ScrapeResult], ScrapeResult]
 
 
 class ScrapeResults:

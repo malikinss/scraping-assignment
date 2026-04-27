@@ -3,7 +3,8 @@ from .method import ScrapeMethod
 from .status import ScrapeStatus
 from .result import ScrapeResult
 from .context import ScraperContext
-from .results import ScrapeResults, Grouped
+from .results import ScrapeResults
+from .subtypes import Grouped
 
 __all__ = [
     "ScrapeMethod",
