@@ -1,24 +1,19 @@
 # ./src/services/results/deps.py
 
-# ===== STANDARD LIB =====
-from typing import Optional, Callable, Dict
-
-# ===== INTERNAL =====
-from src.logger import AppLogger
-from src.models import (
-    ScrapeResult,
-    ScrapeResults,
-    ScrapeStatus,
-    ScraperContext
+from src.models import ScraperContext
+from src.services.deps import (
+    AppLogger, Optional, Callable,
+    Dict, ScrapeResult, ScrapeResults, ScrapeStatus
 )
 
 __all__ = [
+    "ScraperContext",
+
     "Optional",
     "Callable",
     "Dict",
     "AppLogger",
     "ScrapeResult",
     "ScrapeResults",
-    "ScrapeStatus",
-    "ScraperContext",
+    "ScrapeStatus"
 ]

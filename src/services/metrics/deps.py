@@ -1,28 +1,20 @@
 # ./src/services/metrics/deps.py
 
-from dataclasses import dataclass, asdict
 from collections import defaultdict
+from src.models import ScrapeMethod, Counts, Grouped
 from typing import (
     List,
-    Dict,
     Any,
-    Callable,
     TypeVar,
     Tuple,
     ClassVar,
-    Optional,
     TYPE_CHECKING
 )
-from src.logger import AppLogger
-from src.models import (
-    ScrapeResult,
-    ScrapeMethod,
-    ScrapeStatus,
-    ScrapeResults,
-    Counts,
-    Grouped,
+from src.services.deps import (
+    dataclass, asdict,
+    Optional, Callable, Dict, AppLogger,
+    ScrapeResult, ScrapeResults, ScrapeStatus
 )
-
 logger: AppLogger = AppLogger("Metrics")
 
 __all__ = [

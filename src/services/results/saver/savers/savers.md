@@ -109,7 +109,7 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import List, Callable, Any, IO
 # ===== INTERNAL =====
-from src.services.results.result_manager.deps import AppLogger, ScrapeResult, ScrapeResults
+from src.services.results.saver.deps import AppLogger, ScrapeResult, ScrapeResults
 __all__ = ["Path", "ABC", "abstractmethod", "List", "Callable", "Any", "IO", "AppLogger", "ScrapeResult", "ScrapeResults"]
 ```
 
