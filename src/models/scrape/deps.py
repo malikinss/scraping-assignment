@@ -13,9 +13,10 @@ from typing import (
     Iterable,
     Iterator,
     NewType,
-    TypedDict
+    TypedDict,
+    TYPE_CHECKING
 )
-from src.models.common import URL, URLs, Counts
+from src.models.common import URL, URLs
 
 __all__ = [
     "pd",
@@ -23,6 +24,6 @@ __all__ = [
     "defaultdict",
     "dataclass", "asdict", "replace",
     "Optional", "List", "Dict", "Callable",
-    "TypeVar", "Iterable", "Iterator", "NewType", "TypedDict",
-    "URL", "URLs", "Counts"
+    "TypeVar", "Iterable", "Iterator", "NewType", "TypedDict", "TYPE_CHECKING",
+    "URL", "URLs"
 ]

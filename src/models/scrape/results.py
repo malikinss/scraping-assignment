@@ -1,6 +1,6 @@
 # ./src/models/scrape/results.py
 from .result import ScrapeResult
-from .subtypes import K, Predicate, KeyFn, Grouped, TransformFn
+from .subtypes import K, Predicate, KeyFn, Grouped, TransformFn, Counts
 from .deps import (
     List,
     pd,
@@ -8,7 +8,6 @@ from .deps import (
     defaultdict,
     Iterable,
     Iterator,
-    Counts
 )
 
 

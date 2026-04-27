@@ -4,7 +4,7 @@ from .status import ScrapeStatus
 from .result import ScrapeResult
 from .context import ScraperContext
 from .results import ScrapeResults
-from .subtypes import Grouped
+from .subtypes import Grouped, Counts
 
 __all__ = [
     "ScrapeMethod",
@@ -13,4 +13,5 @@ __all__ = [
     "ScrapeResults",
     "Grouped",
     "ScraperContext",
+    "Counts"
 ]
