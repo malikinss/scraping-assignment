@@ -1,61 +1,19 @@
 # ./src/services/metrics/aggregator.py
-
-"""
-Scraping Metrics Aggregator Module
-
-This module provides functionality for aggregating and formatting
-scrape metrics. It handles grouping, counting, and formatting of
-metrics for analysis and reporting.
-
-Usage:
-    >>> from src.services.metrics import MetricsAggregator
-    >>> aggregator = MetricsAggregator()
-    >>> metrics = aggregator.metrics(results)
-    >>> print(metrics)
-"""
-
-from .deps import (
-    ScrapeResults,
-    Grouped,
-    Callable,
-    ScrapeResult,
-    TypeVar,
-    Optional,
-)
 from .models import MetricsSummary
 from .calculator import MetricsCalculator
-
-K = TypeVar("K")
-Distribution = dict[K, int]
-KeyFn = Callable[[ScrapeResult], K]
-FormatterFn = Callable[[K], str]
-
-GroupedMetrics = dict[str, MetricsSummary]
-NonZeroMetrics = dict[str, int]
+from .deps import Grouped, Optional, ScrapeResults
+from .subtypes import (
+    Distribution,
+    KeyFn,
+    FormatterFn,
+    GroupedMetrics,
+    NonZeroMetrics
+)
 
 
 class MetricsAggregator:
-    """
-    Aggregates and formats scrape metrics for analysis and reporting.
-
-    Example:
-        >>> from src.services.metrics import MetricsAggregator
-        >>> aggregator = MetricsAggregator()
-        >>> metrics = aggregator.metrics(results)
-        >>> print(metrics)
-    """
-
     @staticmethod
     def metrics(results: ScrapeResults) -> MetricsSummary:
-        """
-        Calculate metrics for all results.
-
-        Args:
-            results: Scrape results
-
-        Returns:
-            Metrics summary
-        """
         MetricsAggregator._ensure_results(results)
         return MetricsCalculator.calculate(results)
 
@@ -64,16 +22,6 @@ class MetricsAggregator:
         results: ScrapeResults,
         exclude_zero: bool = False
     ) -> GroupedMetrics:
-        """
-        Calculate metrics per method.
-
-        Args:
-            results: Scrape results
-            exclude_zero: Whether to exclude zero metrics
-
-        Returns:
-            Metrics grouped by method
-        """
         MetricsAggregator._ensure_results(results)
         grouped: Grouped = results.group_by_method()
         return {
@@ -89,34 +37,15 @@ class MetricsAggregator:
         results: ScrapeResults,
         exclude_zero: bool = False
     ) -> Distribution:
-        """
-        Calculate status distribution.
-
-        Args:
-            results: Scrape results
-            exclude_zero: Whether to exclude zero metrics
-
-        Returns:
-            Distribution
-        """
         return MetricsAggregator.distribution(
             results,
             lambda r: r.status,
-            lambda s: s.upper(),
+            lambda s: s.value.upper(),
             exclude_zero
         )
 
     @staticmethod
     def _ensure_results(results: ScrapeResults) -> None:
-        """
-        Ensure results are not empty.
-
-        Args:
-            results: Scrape results
-
-        Raises:
-            ValueError: If results are empty
-        """
         if not results:
             raise ValueError("Results cannot be empty")
 
@@ -127,18 +56,6 @@ class MetricsAggregator:
         formatter: Optional[FormatterFn] = None,
         exclude_zero: bool = False
     ) -> Distribution:
-        """
-        Calculate distribution.
-
-        Args:
-            results: Scrape results
-            key_fn: Key function
-            formatter: Formatter function
-            exclude_zero: Whether to exclude zero counts
-
-        Returns:
-            Distribution
-        """
         res = results.count(key_fn)
 
         if exclude_zero:
@@ -154,14 +71,4 @@ class MetricsAggregator:
         metrics: MetricsSummary,
         exclude_zero: bool = False
     ) -> NonZeroMetrics:
-        """
-        Convert metrics to dictionary.
-
-        Args:
-            metrics: Metrics summary
-            exclude_zero: Whether to exclude zero metrics
-
-        Returns:
-            Dictionary
-        """
         return metrics.to_dict(exclude_zero=exclude_zero)

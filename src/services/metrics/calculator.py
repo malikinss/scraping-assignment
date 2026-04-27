@@ -1,59 +1,13 @@
 # ./src/services/metrics/calculator.py
-
-"""
-Metrics Calculator Service
-==========================
-
-This module is responsible for calculating metrics for the scraping process.
-It uses a pipeline approach to calculate metrics for the scraping process.
-
-Key Features:
-    - Pipeline-based metrics calculation
-    - Rate calculation
-    - Latency calculation
-    - Content length calculation
-
-Usage:
-    >>> from src.services.metrics import MetricsCalculator
-    >>> calculator = MetricsCalculator()
-    >>> metrics = calculator.calculate(results)
-    >>> print(metrics)
-
-Example:
-    >>> from src.services.metrics import MetricsCalculator
-    >>> calculator = MetricsCalculator()
-    >>> metrics = calculator.calculate(results)
-    >>> print(metrics)
-"""
-
-from .deps import (
-    Dict,
-    Tuple,
-    ScrapeStatus,
-    ScrapeResults,
-    Counts,
-)
+from .subtypes import Rates
 from .models import MetricsSummary
-
-Rates = Dict[str, float]
+from .deps import Tuple, ScrapeStatus, ScrapeResults, Counts
 
 
 class MetricsCalculator:
-    """
-    This class is responsible for calculating metrics for the scraping process.
-    """
 
     @classmethod
     def calculate(cls, results: ScrapeResults) -> MetricsSummary:
-        """
-        Calculates metrics for the scraping process.
-
-        Args:
-            results (ScrapeResults): Results of the scraping process.
-
-        Returns:
-            MetricsSummary: Summary of the scraping process.
-        """
         total = len(results)
         if total == 0:
             raise ValueError("No results to calculate metrics")
@@ -76,16 +30,6 @@ class MetricsCalculator:
 
     @staticmethod
     def _calculate_rates(counted: Counts, total: int) -> Rates:
-        """
-        Calculates rates for each status.
-
-        Args:
-            counted (Counts): Count of each status.
-            total (int): Total number of results.
-
-        Returns:
-            Rates: Dictionary of rates for each status.
-        """
 
         def rate(status: ScrapeStatus) -> float:
             return counted.get(status, 0) / total
@@ -99,15 +43,6 @@ class MetricsCalculator:
 
     @staticmethod
     def _calculate_latency(results: ScrapeResults) -> Tuple[float, float]:
-        """
-        Calculates latency metrics.
-
-        Args:
-            results (ScrapeResults): Results of the scraping process.
-
-        Returns:
-            Tuple[float, float]: Tuple containing average and P95 latency.
-        """
         latencies = results.values(lambda r: r.latency)
         if not latencies:
             return 0.0, 0.0
@@ -116,7 +51,8 @@ class MetricsCalculator:
         n = len(latencies_sorted)
 
         avg = sum(latencies_sorted) / n
-        p95 = latencies_sorted[int(n * 0.95) - 1]
+        p95_idx = max(0, int(n * 0.95) - 1)
+        p95 = latencies_sorted[p95_idx]
 
         return float(avg), float(p95)
 
@@ -124,14 +60,5 @@ class MetricsCalculator:
 
     @staticmethod
     def _calculate_content_length(results: ScrapeResults) -> float:
-        """
-        Calculates content length metrics.
-
-        Args:
-            results (ScrapeResults): Results of the scraping process.
-
-        Returns:
-            float: Average content length.
-        """
         values = results.values(lambda r: r.content_length)
         return sum(values) / len(values) if values else 0.0
