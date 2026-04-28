@@ -24,7 +24,7 @@ ResultQueue = Queue[ScrapeResult]
 # handlers
 Handler = Callable[..., Awaitable[None]]
 
-logger: AppLogger = AppLogger("PipelineOrchestrator")
+logger: AppLogger = AppLogger("Orchestrator")
 
 __all__ = [
     # dataclasses

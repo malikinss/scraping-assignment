@@ -37,16 +37,6 @@ class PipelineOrchestrator:
         self.http_workers_count: int = settings.httpx.max_concurrency
         self.browser_workers_count: int = settings.browser.max_concurrency
 
-    # ===== LIFECYCLE =====
-
-    async def launch(self):
-        await self.http_scraper.start()
-        await self.browser_scraper.launch()
-
-    async def close(self):
-        await self.http_scraper.close()
-        await self.browser_scraper.close()
-
     # ===== PUBLIC =====
 
     async def process_pipeline(self, urls: URLs) -> ScrapeResults:
@@ -54,14 +44,14 @@ class PipelineOrchestrator:
             return ScrapeResults()
 
         logger.pipeline.start(len(urls), settings.httpx.max_concurrency)
-        await self.launch()
 
         try:
             results: ScrapeResults = await self._run(urls)
             logger.pipeline.summary(results.count_by_status())
             return results
-        finally:
-            await self.close()
+        except Exception as e:
+            logger.pipeline.exception(e)
+            return ScrapeResults()
 
     # ===== CORE =====
 
@@ -73,21 +63,23 @@ class PipelineOrchestrator:
     async def _run(self, urls: URLs) -> ScrapeResults:
         await self._fill_http_queue(urls)
 
-        async with WorkerGroup(
+        async with self.http_scraper:
+            async with WorkerGroup(
                 self.http_workers_count,
                 self._http_handler,
                 self.http_queue,
                 self._worker
-        ):
-            await self.http_queue.join()
+            ):
+                await self.http_queue.join()
 
-        async with WorkerGroup(
+        async with self.browser_scraper:
+            async with WorkerGroup(
                 self.browser_workers_count,
                 self._browser_handler,
                 self.browser_queue,
                 self._worker
-        ):
-            await self.browser_queue.join()
+            ):
+                await self.browser_queue.join()
 
         return await self._drain_results()
 
@@ -136,7 +128,6 @@ class PipelineOrchestrator:
 
     async def _drain_results(self) -> ScrapeResults:
         results: UnNormalResults = []
-
         while True:
             try:
                 item: UnNormalResult = self.result_queue.get_nowait()
@@ -145,7 +136,6 @@ class PipelineOrchestrator:
                 break
             except Exception:
                 break
-
         return ScrapeResults(results)
 
     def _normalize_result(self, result: UnNormalResult) -> ScrapeResult:

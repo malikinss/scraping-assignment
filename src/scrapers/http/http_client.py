@@ -20,7 +20,7 @@ class HTTPXClient:
         return httpx.AsyncClient(
             timeout=settings.httpx.timeout,
             headers={
-                "User-Agent": settings.user_agent.default,
+                "User-Agent": settings.user_agent.user_agent,
                 "Accept-Language": settings.user_agent.languages,
             },
             proxy=settings.httpx.proxy,

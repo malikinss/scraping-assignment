@@ -26,7 +26,7 @@ class HTTPScraper:
         await self._http.start()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:
+    async def __aexit__(self, *args) -> bool:
         await self._http.close()
         return False
 
