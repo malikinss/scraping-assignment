@@ -28,7 +28,7 @@ class BrowserPageContext:
     async def _create_context(self):
         await self.client.ensure()
         context: BrowserContext = await self.client.browser.new_context(
-            user_agent=settings.browser.user_agent,
+            user_agent=settings.user_agent.user_agent,
             locale=settings.browser.locale,
         )
         return context
