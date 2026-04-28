@@ -1,12 +1,9 @@
 # ./src/config/deps.py
 # ===== STD LIB =====
 from pathlib import Path
-from typing import Optional
-from dataclasses import dataclass
-
 # ===== INTERNAL =====
 from src.logger import AppLogger
-
+from src.deps import Optional, dataclass
 __all__ = [
     "Path",
     "Optional",

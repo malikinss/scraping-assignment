@@ -4,7 +4,7 @@
 import time
 
 # ===== INTERNAL =====
-from src.services import detector
+from src.services.detector import detector
 from src.services.results.deps import (
     Optional,
     Callable,

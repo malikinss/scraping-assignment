@@ -1,9 +1,8 @@
 # ./src/logger/deps.py
-import os
 import re
 import logging
-from typing import Optional
 from src.utils import URLUtils
+from src.deps import os, Optional
 from src.models import Counts, ScraperContext
 
 __all__ = [

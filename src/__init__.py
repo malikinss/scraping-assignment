@@ -1,61 +1,40 @@
 # ./src/__init__.py
-
-"""
-Scraping Package
-
-This package provides a comprehensive set of tools for web scraping.
-
-Key Features:
-- Model-based data representation
-- Metrics calculation and aggregation
-- URL validation and normalization
-
-Usage:
-    >>> from src import ScrapeResult, MetricsCalculator, URLUtils
-
-Modules:
-    models: Data models for scrape results
-    services: Metrics calculation and reporting
-    utils: Utility functions
-"""
-
+from .config import settings
+from .logger import AppLogger
 from .models import (
-    ScrapeResult,
-    ScrapeResults,
-    ScrapeMethod,
-    ScrapeStatus,
-    URL,
-    URLs,
-    Counts,
-    Grouped,
+    Grouped, Counts, ScrapeMethod, ScrapeStatus,
+    ScrapeResult, ScrapeResults, ScraperContext, URL, URLs
 )
-
+from .pipeline import PipelineRunner, PipelineOrchestrator
+from .scrapers import HTTPScraper, BrowserScraper
 from .services import (
-    MetricsCalculator,
-    MetricsSummary,
-    MetricsReporter,
-    MetricsAggregator
+    URLInputLoader, ResultFactory, SaverManager,
+    MetricsCalculator, MetricsSummary, MetricsReporter, MetricsAggregator
 )
-
 from .utils import URLUtils
 
-
 __all__ = [
-    # models
-    "ScrapeResult",
-    "ScrapeResults",
+    "settings",
+    "AppLogger",
+    "Grouped",
+    "Counts",
     "ScrapeMethod",
     "ScrapeStatus",
+    "ScrapeResult",
+    "ScrapeResults",
+    "ScraperContext",
     "URL",
     "URLs",
-    "Counts",
-    "Grouped",
-    # services
+    "PipelineRunner",
+    "PipelineOrchestrator",
+    "HTTPScraper",
+    "BrowserScraper",
+    "URLInputLoader",
+    "ResultFactory",
+    "SaverManager",
     "MetricsCalculator",
     "MetricsSummary",
     "MetricsReporter",
     "MetricsAggregator",
-    # utils
     "URLUtils",
-
 ]

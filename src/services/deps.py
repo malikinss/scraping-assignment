@@ -1,7 +1,8 @@
 # ./src/services/deps.py
+from dataclasses import asdict
 from src.logger import AppLogger
-from dataclasses import dataclass, asdict
-from typing import Optional, Callable, Dict
+from typing import Callable, Dict
+from src.deps import Optional, dataclass
 from src.models import ScrapeResult, ScrapeStatus, ScrapeResults
 
 __all__ = [

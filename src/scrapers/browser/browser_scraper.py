@@ -1,4 +1,4 @@
-# ./src/scrapers/browser_scraper.py
+# ./src/scrapers/browser/browser_scraper.py
 from .deps import (
     Page,
     TimeoutError,
