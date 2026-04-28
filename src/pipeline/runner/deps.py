@@ -1,9 +1,8 @@
 # ./src/pipeline/runner/deps.py
-from typing import Optional
-from src.config import settings
-from src.logger import AppLogger
-from src.models import ScrapeResults, URLs
 from src.services import SaverManager, URLInputLoader, MetricsReporter
+from src.pipeline.deps import (
+    Optional, settings, AppLogger, ScrapeResults, URLs
+)
 
 INPUT_FILE = settings.files.urls
 OUTPUT_FILE = settings.files.output_csv

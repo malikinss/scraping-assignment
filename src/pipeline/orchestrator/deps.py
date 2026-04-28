@@ -1,12 +1,12 @@
 # ./src/pipeline/orchestrator/deps.py
 from dataclasses import replace
 from asyncio import Task, Queue, QueueEmpty
-from src.config import settings
-from src.models import URL, URLs
-from src.logger import AppLogger
+from typing import List, Callable, Awaitable, Union
 from src.scrapers import HTTPScraper, BrowserScraper
-from typing import Optional, List, Callable, Awaitable, Union
-from src.models import ScrapeResult, ScrapeStatus, ScrapeMethod, ScrapeResults
+from src.models import ScrapeResult, ScrapeStatus, ScrapeMethod, URL
+from src.pipeline.deps import (
+    Optional, settings, AppLogger, ScrapeResults, URLs
+)
 
 # unnormal types
 UnNormalResult = Union[ScrapeResult, Exception]
